@@ -16,8 +16,22 @@
   // would imply a difference that does not exist.
   const OS_TABS = ['curl', 'claude', 'codex', 'aider', 'continue'];
 
-  // Base URL оригинального API — показывается в сниппетах подключения как есть.
-  const BASE_URL = 'https://example.com/v1';
+  // The server derives this from PUBLIC_ORIGIN. Keep the current origin as a
+  // usable fallback when the configuration endpoint is temporarily unavailable.
+  let BASE_URL = `${window.location.origin}/v1`;
+
+  async function loadConfig() {
+    try {
+      const r = await fetch('/api/config');
+      if (!r.ok) return;
+      const config = await r.json();
+      if (typeof config.base_url === 'string' && config.base_url) {
+        BASE_URL = config.base_url;
+      }
+    } catch (_) {
+      // The fallback above keeps the portal usable during a transient failure.
+    }
+  }
 
   // ---------------- i18n ----------------
   const I18N = {
@@ -898,7 +912,7 @@
 
     renderRecent();
 
-    // connection snippets — Base URL оригинального API (захардкожен)
+    // Connection snippets use the Base URL supplied by /api/config.
     const base = BASE_URL;
     $('#baseUrl').textContent = base;
     refreshSnips();
@@ -1065,7 +1079,7 @@
   }
 
   // ---------------- init ----------------
-  function init() {
+  async function init() {
     // язык: сохранённый или автоопределение из настроек браузера
     const lang = getLang();
     localStorage.setItem(LANG_KEY, lang);
@@ -1079,6 +1093,8 @@
     localStorage.setItem(OS_KEY, os);
     syncOsToggle(os);
     applyOsVisibility();
+
+    await loadConfig();
 
     bindEvents();
     loadNews();
