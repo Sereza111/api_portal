@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="page.title">api-portal API</title>
+<meta name="description" content="api-portal API portal — manage your key, view usage and connect models.">
+<meta name="theme-color" content="#020203">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ambient blobs background -->
+<div class="bg-blobs" aria-hidden="true">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+</div>
+
+<!-- language switch (виден на всех экранах) -->
+<div class="lang-switch-float">
+  <div class="lang-toggle" role="group" aria-label="Language">
+    <button class="lang-btn" type="button" data-lang-btn="ru" aria-pressed="false">RU</button>
+    <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
+  </div>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<section id="login">
+  <div class="wrap">
+    <div class="login-grid">
+      <div class="hero">
+        <span class="pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4"/><path d="m18 5 2 2"/><path d="m15 8 2 2"/></svg>
+          <span data-i18n="hero.badge">Portal by API-key</span>
+        </span>
+        <h1 data-i18n="hero.title">Manage your api-portal API key</h1>
+        <p data-i18n="hero.subtitle">Enter your no-expiry key to see token balance, daily and monthly usage, available models and validity.</p>
+        <div class="stats">
+          <div class="stat-card">
+            <div class="n">GPT + Claude</div>
+            <div class="l">GPT-5.6 Sol · Terra · Luna</div>
+          </div>
+          <div class="stat-card">
+            <div class="n" data-i18n="hero.oneClick">1 click</div>
+            <div class="l" data-i18n="hero.copyConfig">copy config</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        </div>
+        <h2 data-i18n="login.title">Sign in</h2>
+        <p class="sub" data-i18n="login.subtitle">Login with your API key</p>
+        <label for="key">API key</label>
+        <textarea id="key" placeholder="sk-..." spellcheck="false" autocomplete="off"></textarea>
+        <div class="err" id="err"></div>
+        <div class="spacer"></div>
+        <button class="btn" id="loginBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+          <span data-i18n="login.button">Sign in</span>
+        </button>
+        <p class="foot" data-i18n="login.disclaimer">Do not share your API key. It is used for login and API calls.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<section id="dash" hidden>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <span class="dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8l-4 4 4 4M17 8l4 4-4 4M14 4l-4 16"/></svg>
+        </span>
+        api-portal API
+      </div>
+      <div class="topbar-right">
+        <span class="keytag" id="keytag">sk-:</span>
+        <button class="btn ghost" id="copyKey" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          <span data-i18n="dash.copyConfig">Copy config</span>
+        </button>
+        <a class="btn ghost" id="statusLink" href="https://status.example.com" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span data-i18n="dash.statusLink">Service status</span>
+        </a>
+        <button class="btn ghost" id="logout" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          <span data-i18n="dash.logout">Logout</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- news banner (под хедером) -->
+    <div id="newsBanner" class="news-card" hidden>
+      <div class="news-card-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+      </div>
+      <div class="news-card-body">
+        <div class="news-card-label">ANNOUNCEMENT</div>
+        <div class="news-card-text" id="newsText"></div>
+      </div>
+      <button class="news-card-close" id="newsClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="grid cols-3">
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span data-i18n="dash.remaining">Token balance</span>
+        </h3>
+        <div class="big" id="remaining">—</div>
+        <div class="sub2" id="remainingSub" data-i18n="dash.ofPackage">of — package</div>
+        <div class="sub2" id="remainingHold" hidden></div>
+        <div class="bar"><i id="remainingBar" style="width:0%"></i></div>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          <span data-i18n="dash.used">Used</span>
+        </h3>
+        <div class="big small" id="used">—</div>
+        <div class="sub2" data-i18n="dash.usedSub">total credits spent</div>
+        <div class="sub2" id="usedTokens"></div>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9M14 17H5M17 17a3 3 0 1 0 0 .01M7 7a3 3 0 1 0 0 .01"/></svg>
+          <span data-i18n="dash.plan">Plan</span>
+        </h3>
+        <div class="big small" id="planName">—</div>
+        <div class="sub2" id="expiry" data-i18n="dash.noExpiry">valid until you spend all your tokens</div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="panel">
+      <div class="conn-top">
+        <h3 style="margin:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <span data-i18n="dash.connect">API connection</span>
+        </h3>
+        <div class="conn-base">
+          <span class="conn-label">Base URL</span>
+          <code class="conn-url" id="baseUrl">—</code>
+          <button class="btn ghost mini" id="copyBase" type="button" data-i18n="dash.copy">Copy</button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" type="button" data-tab="curl" role="tab">cURL</button>
+        <button class="tab" type="button" data-tab="py" role="tab">Python</button>
+        <button class="tab" type="button" data-tab="js" role="tab">Node.js</button>
+        <button class="tab" type="button" data-tab="env" role="tab">.env</button>
+        <button class="tab" type="button" data-tab="cursor" role="tab">Cursor</button>
+        <button class="tab" type="button" data-tab="vscode" role="tab">VS Code (Cline/Roo Code)</button>
+        <button class="tab" type="button" data-tab="continue" role="tab">Continue.dev</button>
+        <button class="tab" type="button" data-tab="claude" role="tab">Claude CLI</button>
+        <button class="tab" type="button" data-tab="codex" role="tab">Codex CLI</button>
+        <button class="tab" type="button" data-tab="aider" role="tab">Aider</button>
+        <button class="tab" type="button" data-tab="silly" role="tab">SillyTavern</button>
+        <button class="tab" type="button" data-tab="cherry" role="tab">Cherry / LobeChat</button>
+        <button class="btn ghost mini" id="copySnippet" type="button" style="margin-left:auto" data-i18n="dash.copy">Copy</button>
+      </div>
+
+      <!-- OS switch: only shown for tabs whose commands actually differ -->
+      <div class="os-row" id="osRow" hidden>
+        <div class="os-toggle" role="group" aria-label="OS">
+          <button class="os-btn" type="button" data-os-btn="linux">Linux</button>
+          <button class="os-btn" type="button" data-os-btn="mac">macOS</button>
+          <button class="os-btn" type="button" data-os-btn="win">Windows</button>
+        </div>
+        <span class="os-hint" data-i18n="dash.osHint">Commands differ per OS</span>
+      </div>
+
+      <!-- code snippets (curl/python/js/env) -->
+      <pre id="snippet"></pre>
+
+      <!-- guide panes (по одному на таб) -->
+      <div id="guidesPanel" hidden>
+        <div class="guide-pane" data-guide="cursor">
+          <ol data-i18n-ru='{"html":"<li>Открой <b>Settings → Models</b> (Ctrl/Cmd+Shift+J).</li><li>Найди <b>OpenAI API Key</b>, включи и вставь свой ключ.</li><li>Включи <b>Override OpenAI Base URL</b> → <code>https://example.com/v1</code>.</li><li>В списке моделей добавь свою: <code>{model}</code> (кнопка «+ Add model»).</li><li>Нажми <b>Verify</b> — должно стать зелёным. Готово.</li>"}'
+              data-i18n-en='{"html":"<li>Open <b>Settings → Models</b> (Ctrl/Cmd+Shift+J).</li><li>Find <b>OpenAI API Key</b>, enable and paste your key.</li><li>Enable <b>Override OpenAI Base URL</b> → <code>https://example.com/v1</code>.</li><li>Add your model to the list: <code>{model}</code> («+ Add model» button).</li><li>Click <b>Verify</b> — should turn green. Done.</li>"}'>
+            <li>Open <b>Settings → Models</b>.</li>
+          </ol>
+        </div>
+
+        <div class="guide-pane" data-guide="vscode" hidden>
+          <ol data-i18n-ru='{"html":"<li>Открой настройки расширения (шестерёнка в панели Cline/Roo).</li><li><b>API Provider</b>: <code>OpenAI Compatible</code>.</li><li><b>Base URL</b>: <code>https://example.com/v1</code></li><li><b>API Key</b>: твой ключ.</li><li><b>Model ID</b>: <code>{model}</code> (любая из доступных по ключу).</li>"}'
+              data-i18n-en='{"html":"<li>Open the extension settings (gear in Cline/Roo panel).</li><li><b>API Provider</b>: <code>OpenAI Compatible</code>.</li><li><b>Base URL</b>: <code>https://example.com/v1</code></li><li><b>API Key</b>: your key.</li><li><b>Model ID</b>: <code>{model}</code> (any model your key allows).</li>"}'>
+            <li>Open the extension settings.</li>
+          </ol>
+        </div>
+
+        <div class="guide-pane" data-guide="continue" hidden>
+          <p data-os="linux mac" data-i18n-ru='{"html":"В <code>~/.continue/config.json</code> в массив <code>models</code>:"}'
+             data-i18n-en='{"html":"In <code>~/.continue/config.json</code>, into the <code>models</code> array:"}'>In <code>~/.continue/config.json</code>:</p>
+          <p data-os="win" data-i18n-ru='{"html":"В <code>%USERPROFILE%\\.continue\\config.json</code> в массив <code>models</code>:"}'
+             data-i18n-en='{"html":"In <code>%USERPROFILE%\\.continue\\config.json</code>, into the <code>models</code> array:"}'>In <code>%USERPROFILE%\.continue\config.json</code>:</p>
+          <pre><code id="guide-continue" data-model-tpl>{
+  "title": "{model}",
+  "provider": "openai",
+  "model": "{model}",
+  "apiBase": "https://example.com/v1",
+  "apiKey": "sk-…"
+}</code></pre>
+        </div>
+
+        <div class="guide-pane" data-guide="claude" hidden>
+          <p data-i18n-ru='{"html":"Claude CLI говорит на родном формате Anthropic. Base URL здесь <b>без</b> <code>/v1</code> — клиент добавляет его сам."}'
+             data-i18n-en='{"html":"Claude CLI speaks the native Anthropic format. The base URL here is <b>without</b> <code>/v1</code> — the client appends it itself."}'>Claude CLI uses the native Anthropic format.</p>
+          <pre data-os="linux mac"><code id="guide-claude" data-model-tpl="claude">export ANTHROPIC_BASE_URL="https://example.com"
+export ANTHROPIC_AUTH_TOKEN="sk-…"
+export ANTHROPIC_MODEL="{model}"
+export ANTHROPIC_SMALL_FAST_MODEL="{fast_model}"
+
+claude</code></pre>
+          <div data-os="win">
+            <p class="os-label">PowerShell</p>
+            <pre><code id="guide-claude-ps" data-model-tpl="claude">$env:ANTHROPIC_BASE_URL = "https://example.com"
+$env:ANTHROPIC_AUTH_TOKEN = "sk-…"
+$env:ANTHROPIC_MODEL = "{model}"
+$env:ANTHROPIC_SMALL_FAST_MODEL = "{fast_model}"
+
+claude</code></pre>
+            <p class="os-label">cmd.exe</p>
+            <pre><code id="guide-claude-cmd" data-model-tpl="claude">set ANTHROPIC_BASE_URL=https://example.com
+set ANTHROPIC_AUTH_TOKEN=sk-…
+set ANTHROPIC_MODEL={model}
+set ANTHROPIC_SMALL_FAST_MODEL={fast_model}
+
+claude</code></pre>
+          </div>
+          <p class="dim" style="font-size:12px;margin-top:8px" data-i18n-ru='{"html":"Замени <code>sk-…</code> на свой ключ. Если раньше входил через <code>claude login</code> — сначала <code>claude logout</code>, иначе CLI продолжит ходить в свой аккаунт. Чтобы не выставлять переменные каждый раз, добавь их в <code>~/.bashrc</code> / <code>~/.zshrc</code> или в <code>~/.claude/settings.json</code> в блок <code>env</code>."}' data-i18n-en='{"html":"Replace <code>sk-…</code> with your key. If you signed in via <code>claude login</code> before, run <code>claude logout</code> first, otherwise the CLI keeps using its own account. To avoid exporting every time, put these in <code>~/.bashrc</code> / <code>~/.zshrc</code>, or into the <code>env</code> block of <code>~/.claude/settings.json</code>."}'>Replace sk-… with your key.</p>
+        </div>
+
+        <div class="guide-pane" data-guide="codex" hidden>
+          <p data-os="linux mac" data-i18n-ru='{"html":"Добавь в <code>~/.codex/config.toml</code>. Параметры контекста обязательны: без них Codex не запускает сжатие до серверного лимита."}'
+             data-i18n-en='{"html":"Add to <code>~/.codex/config.toml</code>. Context params are required: without them Codex won\\'t compact to the server limit."}'>Add to <code>~/.codex/config.toml</code>:</p>
+          <p data-os="win" data-i18n-ru='{"html":"Добавь в <code>%USERPROFILE%\\.codex\\config.toml</code>. Параметры контекста обязательны: без них Codex не запускает сжатие до серверного лимита."}'
+             data-i18n-en='{"html":"Add to <code>%USERPROFILE%\\.codex\\config.toml</code>. Context params are required: without them Codex won\\'t compact to the server limit."}'>Add to <code>%USERPROFILE%\.codex\config.toml</code>:</p>
+          <pre><code id="guide-codex" data-model-tpl="gpt">model = "{model}"
+model_provider = "reseller"
+model_context_window = 353000
+model_auto_compact_token_limit = 300000
+
+[model_providers.reseller]
+name = "Reseller"
+base_url = "https://example.com/v1"
+wire_api = "responses"
+experimental_bearer_token = "sk-…"</code></pre>
+          <p class="dim" style="font-size:12px;margin-top:8px" data-i18n-ru='{"html":"Замени <code>sk-…</code> на свой ключ и полностью перезапусти Codex CLI / Desktop."}' data-i18n-en='{"html":"Replace <code>sk-…</code> with your key and fully restart Codex CLI / Desktop."}'>Replace sk-… with your key.</p>
+        </div>
+
+        <div class="guide-pane" data-guide="aider" hidden>
+          <pre data-os="linux mac"><code id="guide-aider" data-model-tpl>export OPENAI_API_BASE="https://example.com/v1"
+export OPENAI_API_KEY="sk-…"
+aider --model {model}</code></pre>
+          <div data-os="win">
+            <p class="os-label">PowerShell</p>
+            <pre><code id="guide-aider-ps" data-model-tpl>$env:OPENAI_API_BASE = "https://example.com/v1"
+$env:OPENAI_API_KEY = "sk-…"
+aider --model {model}</code></pre>
+            <p class="os-label">cmd.exe</p>
+            <pre><code id="guide-aider-cmd" data-model-tpl>set OPENAI_API_BASE=https://example.com/v1
+set OPENAI_API_KEY=sk-…
+aider --model {model}</code></pre>
+          </div>
+        </div>
+
+        <div class="guide-pane" data-guide="silly" hidden>
+          <ol data-i18n-ru='{"html":"<li><b>API</b> → <b>Chat Completion</b> → источник <code>Custom (OpenAI-compatible)</code>.</li><li><b>Custom Endpoint</b>: <code>https://example.com/v1</code></li><li><b>API Key</b>: твой ключ, нажми «Connect».</li><li>В списке моделей выбери <code>{model}</code>.</li>"}'
+              data-i18n-en='{"html":"<li><b>API</b> → <b>Chat Completion</b> → source <code>Custom (OpenAI-compatible)</code>.</li><li><b>Custom Endpoint</b>: <code>https://example.com/v1</code></li><li><b>API Key</b>: your key, click «Connect».</li><li>In the model list select <code>{model}</code>.</li>"}'>
+            <li>API → Chat Completion.</li>
+          </ol>
+        </div>
+
+        <div class="guide-pane" data-guide="cherry" hidden>
+          <ol data-i18n-ru='{"html":"<li>Добавь провайдера типа <b>OpenAI</b>.</li><li><b>API Host / Endpoint</b>: <code>https://example.com/v1</code></li><li><b>API Key</b>: твой ключ.</li><li>Модель: <code>{model}</code>. Если поле требует ручного ввода — впиши его.</li>"}'
+              data-i18n-en='{"html":"<li>Add a provider of type <b>OpenAI</b>.</li><li><b>API Host / Endpoint</b>: <code>https://example.com/v1</code></li><li><b>API Key</b>: your key.</li><li>Model: <code>{model}</code>. If it requires manual entry, type it in.</li>"}'>
+            <li>Add a provider of type OpenAI.</li>
+          </ol>
+        </div>
+      </div>
+
+      <p class="dim" style="font-size:12px;margin-top:10px" data-i18n="dash.compatNote">OpenAI-compatible — set Base URL and your key in any OpenAI client or SDK.</p>
+    </div>
+
+    <div class="spacer"></div>
+
+    <section class="panel usage-rates" aria-labelledby="usageRatesTitle">
+      <div class="usage-rates-head">
+        <div>
+          <h3 id="usageRatesTitle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 6-6"/></svg>
+            <span data-i18n="dash.modelsTitle">Models</span>
+          </h3>
+          <p class="usage-rates-note" data-i18n="dash.modelsNote">Credits per 1M tokens, plus live availability.</p>
+        </div>
+        <span class="status-summary" id="modelStatusSummary">—</span>
+      </div>
+
+      <!-- One row per model: id, price, live status. Pricing and status used to
+           be two tabs, but they describe the same list, so splitting them made
+           the reader jump back and forth to answer "what does it cost and does
+           it work". -->
+      <ul class="usage-rates-list" id="usageRates" aria-label="Models: price and status">
+        <li><code>&nbsp;</code><span class="mprice">&nbsp;</span></li>
+      </ul>
+    </section>
+
+    <div class="spacer"></div>
+
+    <div class="grid cols-3">
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span data-i18n="dash.requests">Requests (30d)</span>
+        </h3>
+        <div class="big small" id="reqTotal">—</div>
+        <div class="sub2" data-i18n="dash.totalCalls">total calls</div>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+          <span data-i18n="dash.success">Success</span>
+        </h3>
+        <div class="big small" id="successRate">—</div>
+        <div class="sub2" id="successSub" data-i18n="dash.recentReqs">of recent requests</div>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          <span data-i18n="dash.availableModels">Available models</span>
+        </h3>
+        <div class="chips" id="models"></div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="grid cols-2">
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 6-6"/></svg>
+          <span data-i18n="dash.tokens14">Tokens — last 14 days</span>
+        </h3>
+        <div class="chart" id="chart"></div>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg>
+          <span data-i18n="dash.byModel">By model (30d)</span>
+        </h3>
+        <div class="mlist" id="byModel"></div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="panel">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>
+        <span data-i18n="dash.recent">Recent requests</span>
+      </h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="dash.t.time">Time</th>
+              <th data-i18n="dash.t.model">Model</th>
+              <th data-i18n="dash.t.input">Input</th>
+              <th data-i18n="dash.t.output">Output</th>
+              <th data-i18n="dash.t.cache">Cache</th>
+              <th data-i18n="dash.t.credits">Credits</th>
+              <th data-i18n="dash.t.status">Status</th>
+            </tr>
+          </thead>
+          <tbody id="recent"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/app.js"></script>
+</body>
+</html>

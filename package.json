@@ -1,0 +1,12 @@
+{
+  "name": "api-portal",
+  "version": "1.0.0",
+  "description": "Transparent API proxy: example.com -> upstream.example",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["proxy", "openai"],
+  "author": "",
+  "license": "MIT"
+}

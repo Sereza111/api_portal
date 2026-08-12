@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="sp.title">Статус · api-portal API</title>
+<meta name="description" content="Live availability of api-portal API models.">
+<meta name="theme-color" content="#020203">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="status-page">
+
+<div class="bg-blobs" aria-hidden="true">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+</div>
+
+<div class="lang-switch-float">
+  <div class="lang-toggle" role="group" aria-label="Language">
+    <button class="lang-btn" type="button" data-lang-btn="ru" aria-pressed="false">RU</button>
+    <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
+  </div>
+</div>
+
+<main class="wrap sp-wrap">
+
+  <header class="sp-head">
+    <span class="pill">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <span data-i18n="sp.badge">Статус сервиса</span>
+    </span>
+    <h1 data-i18n="sp.h1">Доступность моделей</h1>
+    <p class="muted" data-i18n="sp.sub">Состояние считается по телеметрии провайдера за последние 24 часа. Обновляется каждую минуту.</p>
+  </header>
+
+  <section class="panel usage-rates" aria-labelledby="spListTitle">
+    <div class="usage-rates-head">
+      <div>
+        <h3 id="spListTitle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 6-6"/></svg>
+          <span data-i18n="sp.listTitle">Модели</span>
+        </h3>
+        <p class="usage-rates-note" data-i18n="sp.listNote">Задержка и доля успешных запросов показываются у моделей, к которым за окно наблюдения были обращения.</p>
+      </div>
+      <div class="sp-head-right">
+        <div class="sp-range" role="group" aria-label="Range">
+          <button class="sp-range-btn" type="button" data-range-btn="24h" aria-pressed="true" data-i18n="sp.range24">24 часа</button>
+          <button class="sp-range-btn" type="button" data-range-btn="7d" aria-pressed="false" data-i18n="sp.range7d">7 дней</button>
+        </div>
+        <span class="status-summary" id="spSummary">—</span>
+      </div>
+    </div>
+
+    <ul class="usage-rates-list" id="spList">
+      <li class="sp-empty"><code data-i18n="sp.loading">Загрузка…</code></li>
+    </ul>
+  </section>
+
+  <section class="panel sp-legend" aria-labelledby="spLegendTitle">
+    <h3 id="spLegendTitle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      <span data-i18n="sp.legendTitle">Как это считается</span>
+    </h3>
+    <ul class="sp-legend-list">
+      <li><span class="status-dot" style="background:#10b981"></span><span data-i18n="sp.legendUp">Работает — не менее 90% успешных запросов, либо трафика слишком мало для вывода о сбое.</span></li>
+      <li><span class="status-dot" style="background:#f59e0b"></span><span data-i18n="sp.legendDeg">Сбои — от 40% до 90% успешных запросов.</span></li>
+      <li><span class="status-dot" style="background:#f43f5e"></span><span data-i18n="sp.legendDown">Не отвечает — меньше 40% успешных запросов.</span></li>
+      <li><span class="status-dot" style="background:#949494"></span><span data-i18n="sp.legendUnknown">Нет данных — за 24 часа обращений к модели не было.</span></li>
+      <li><span class="sp-legend-strip" aria-hidden="true"></span><span data-i18n="sp.legendCell">Полоса под моделью — 48 получасовых интервалов за сутки, слева старые, справа свежие. Серый интервал означает отсутствие запросов.</span></li>
+    </ul>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var LANG_KEY = 'cx_lang';
+  // Chosen window survives a reload: someone watching an incident over a week
+  // should not be dropped back to 24h by the 60s refresh or a tab restore.
+  var RANGE_KEY = 'cx_sp_range';
+  var RANGES = ['24h', '7d'];
+  var REFRESH_MS = 60000;
+
+  var I18N = {
+    ru: {
+      'sp.title': 'Статус · api-portal API',
+      'sp.badge': 'Статус сервиса',
+      'sp.h1': 'Доступность моделей',
+      'sp.sub': 'Состояние считается по телеметрии провайдера за {w}. Обновляется каждую минуту.',
+      'sp.listTitle': 'Модели',
+      'sp.listNote': 'У моделей с трафиком показаны доля успешных запросов за {w} и уровень задержки.',
+      'sp.loading': 'Загрузка…',
+      'sp.legendTitle': 'Как это считается',
+      'sp.legendUp': 'Работает — не менее 90% успешных запросов за {w}.',
+      'sp.legendDeg': 'Сбои — от 40% до 90% успешных запросов.',
+      'sp.legendDown': 'Не отвечает — меньше 40% успешных запросов.',
+      'sp.legendUnknown': 'Нет данных — за {w} обращений к модели не было.',
+      'sp.uptime': 'аптайм {v}% за {w}',
+      'sp.cellNoTraffic': 'запросов не было',
+      'sp.stripAria': 'История доступности по интервалам в {b} за {w}',
+      'sp.legendCell': 'Полоса под моделью — интервалы по {b} за {w}, слева старые, справа свежие. Серый интервал означает отсутствие запросов.',
+      'sp.range24': '24 часа',
+      'sp.range7d': '7 дней',
+      'sp.bucketMin': '{n} мин',
+      'sp.bucketHour': '{n} ч',
+      'lat.low': 'низкая задержка',
+      'lat.medium': 'средняя задержка',
+      'lat.high': 'высокая задержка',
+      'lat.very_high': 'очень высокая задержка',
+      'sp.offline': 'Не удалось получить данные',
+      'status.unknown': 'Нет данных',
+      'status.available': 'Работает',
+      'status.degraded': 'Сбои',
+      'status.down': 'Не отвечает'
+    },
+    en: {
+      'sp.title': 'Status · api-portal API',
+      'sp.badge': 'Service status',
+      'sp.h1': 'Model availability',
+      'sp.sub': 'State is derived from provider telemetry over the last {w}. Refreshed every minute.',
+      'sp.listTitle': 'Models',
+      'sp.listNote': 'Models with traffic show their {w} success rate and latency level.',
+      'sp.loading': 'Loading…',
+      'sp.legendTitle': 'How this is measured',
+      'sp.legendUp': 'Operational — at least 90% of requests succeeded over {w}.',
+      'sp.legendDeg': 'Degraded — between 40% and 90% of requests succeeded.',
+      'sp.legendDown': 'Not responding — fewer than 40% of requests succeeded.',
+      'sp.legendUnknown': 'No data — the model saw no requests in {w}.',
+      'sp.uptime': '{v}% uptime over {w}',
+      'sp.cellNoTraffic': 'no requests',
+      'sp.stripAria': 'Availability history in {b} intervals over {w}',
+      'sp.legendCell': 'The strip under each model is {b} intervals over {w}, oldest on the left. A grey interval means no requests.',
+      'sp.range24': '24 hours',
+      'sp.range7d': '7 days',
+      'sp.bucketMin': '{n} min',
+      'sp.bucketHour': '{n}h',
+      'lat.low': 'low latency',
+      'lat.medium': 'medium latency',
+      'lat.high': 'high latency',
+      'lat.very_high': 'very high latency',
+      'sp.offline': 'Could not load data',
+      'status.unknown': 'No data',
+      'status.available': 'Operational',
+      'status.degraded': 'Degraded',
+      'status.down': 'Not responding'
+    }
+  };
+
+  var STATE_COLORS = {
+    available: '#10b981',
+    degraded: '#f59e0b',
+    down: '#f43f5e',
+    unknown: '#949494'
+  };
+
+  function $(s) { return document.querySelector(s); }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function getLang() {
+    var saved = localStorage.getItem(LANG_KEY);
+    if (saved === 'ru' || saved === 'en') return saved;
+    return (navigator.language || 'en').toLowerCase().indexOf('ru') === 0 ? 'ru' : 'en';
+  }
+
+  function t(key) {
+    var d = I18N[getLang()] || I18N.en;
+    return d[key] != null ? d[key] : (I18N.en[key] != null ? I18N.en[key] : key);
+  }
+
+  function getRange() {
+    var saved = localStorage.getItem(RANGE_KEY);
+    return RANGES.indexOf(saved) >= 0 ? saved : '24h';
+  }
+
+  /** Human name of the active window, e.g. "24 часа" / "7 days". */
+  function rangeLabel() {
+    return t(getRange() === '7d' ? 'sp.range7d' : 'sp.range24');
+  }
+
+  /** Bucket width. Read from the payload, because the provider serves
+   *  30-minute cells for 24h and 3-hour cells for 7d and hardcoding either one
+   *  mislabels the other window. The per-range default covers the first paint
+   *  and a failed fetch: with no fallback the legend rendered a blank gap where
+   *  the interval should be. */
+  var BUCKET_FALLBACK = { '24h': 1800, '7d': 10800 };
+  function bucketLabel() {
+    var s = (statusData && Number(statusData.bucket_seconds)) || BUCKET_FALLBACK[getRange()];
+    if (!s) return '';
+    return s % 3600 === 0
+      ? t('sp.bucketHour').replace('{n}', String(s / 3600))
+      : t('sp.bucketMin').replace('{n}', String(Math.round(s / 60)));
+  }
+
+  /** Fills the window/bucket placeholders so one string serves both ranges. */
+  function fill(s) {
+    return String(s).replace(/\{w\}/g, rangeLabel()).replace(/\{b\}/g, bucketLabel());
+  }
+
+  function applyI18n() {
+    var lang = getLang();
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var v = fill(t(el.getAttribute('data-i18n')));
+      if (el.tagName === 'TITLE') document.title = v;
+      else el.textContent = v;
+    });
+    document.querySelectorAll('[data-lang-btn]').forEach(function (b) {
+      var active = b.getAttribute('data-lang-btn') === lang;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    var range = getRange();
+    document.querySelectorAll('[data-range-btn]').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-range-btn') === range ? 'true' : 'false');
+    });
+  }
+
+  var statusData = null;
+  var failed = false;
+
+  // Colour for one timeline cell. Deliberately different thresholds from the
+  // row state: a cell is a single half-hour window, so a partial failure inside
+  // it must stay visible instead of being rounded up to green.
+  function bucketColor(b) {
+    if (!b || b.s !== 'data' || b.u == null) return 'var(--sp-cell-empty)';
+    if (b.u >= 99.95) return STATE_COLORS.available;
+    if (b.u >= 90) return '#3fbf8f';
+    if (b.u >= 40) return STATE_COLORS.degraded;
+    return STATE_COLORS.down;
+  }
+
+  // Over 7 days a bare clock is ambiguous -- 48 cells share the same "03:00" --
+  // so the day is prepended once the window is wider than a day.
+  function fmtClock(ts) {
+    var loc = getLang() === 'ru' ? 'ru-RU' : 'en-GB';
+    var d = new Date(ts * 1000);
+    var hm = d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+    if (getRange() !== '7d') return hm;
+    return d.toLocaleDateString(loc, { day: '2-digit', month: '2-digit' }) + ' ' + hm;
+  }
+
+  /** Per-model timeline: one cell per provider bucket, oldest on the left. */
+  function strip(m) {
+    var bs = m && m.buckets;
+    if (!bs || !bs.length) return '';
+
+    var cells = bs.map(function (b) {
+      // Native title tooltip instead of a JS popover: the strip is 48 cells x 19
+      // models, and one listener per cell is not worth it for a hover label.
+      var tip = fmtClock(b.t) + ' — '
+        + (b.s === 'data' && b.u != null
+            ? Number(b.u).toFixed(b.u >= 99.95 || b.u === 0 ? 0 : 2) + '%'
+            : t('sp.cellNoTraffic'));
+      return '<i class="sp-cell" style="background:' + bucketColor(b) + '" title="' + esc(tip) + '"></i>';
+    }).join('');
+
+    var first = bs[0];
+    var last = bs[bs.length - 1];
+    return '<div class="sp-strip-wrap">'
+      + '<div class="sp-strip" role="img" aria-label="' + esc(fill(t('sp.stripAria'))) + '">' + cells + '</div>'
+      + '<div class="sp-strip-axis"><span>' + esc(fmtClock(first.t)) + '</span>'
+      + '<span>' + esc(fmtClock(last.t)) + '</span></div>'
+      + '</div>';
+  }
+
+  function render() {
+    var ul = $('#spList');
+    if (!ul) return;
+
+    // Status drives the set and the order: the server already sorts worst-first
+    // so an incident leads the page instead of hiding under healthy rows.
+    var models = (statusData && statusData.models) || [];
+
+    if (!models.length) {
+      ul.innerHTML = '<li class="sp-empty"><code>'
+        + esc(failed ? t('sp.offline') : t('status.unknown')) + '</code></li>';
+    } else {
+      ul.innerHTML = models.map(function (m) {
+        var state = m.state || 'unknown';
+        var c = STATE_COLORS[state] || STATE_COLORS.unknown;
+
+        // Metrics exist only where traffic actually flowed. A model with no
+        // measured bucket shows its state alone: the provider reports a filler
+        // uptime of 100 for those, and printing it would fake a verified result.
+        var bits = [];
+        if (m.requests > 0 && m.uptime_pct != null) {
+          bits.push(fill(t('sp.uptime')).replace('{v}', Number(m.uptime_pct).toFixed(m.uptime_pct >= 99.95 ? 0 : 2)));
+        }
+        if (m.requests > 0 && m.latency_level) {
+          var lk = t('lat.' + m.latency_level);
+          if (lk !== 'lat.' + m.latency_level) bits.push(lk);
+        }
+        var meta = bits.length ? ' <em class="status-meta">' + esc(bits.join(' · ')) + '</em>' : '';
+
+        return '<li><code>' + esc(m.model) + '</code>'
+          + '<strong><span class="status-dot" style="background:' + c + '"></span>'
+          + '<span style="color:' + c + '">' + esc(t('status.' + state) || state) + '</span>'
+          + meta + '</strong>'
+          + strip(m) + '</li>';
+      }).join('');
+    }
+
+    // The overall banner was removed: the per-model list already carries the
+    // same signal per row, and a single headline verdict added a second place
+    // that could disagree with it. The count stays as the list's own summary.
+    // Count only genuine failures. 'unknown' is an absence of measurement, so
+    // available/total printed "10/19" on a week where nothing had broken --
+    // the other nine had simply seen no traffic in the window.
+    var bad = 0;
+    var known = 0;
+    if (statusData && statusData.models) {
+      statusData.models.forEach(function (m) {
+        known += 1;
+        if (m.state === 'down' || m.state === 'degraded') bad += 1;
+      });
+    }
+    var count = known ? (bad > 0 ? bad + '/' + known : '') : '—';
+    var sEl = $('#spSummary');
+    if (sEl) sEl.textContent = count;
+  }
+
+  // Anonymous request: the server answers with the public model set, which is
+  // exactly what a status page should show. No key is ever needed here.
+  //
+  // Only /api/model-status is fetched. This subdomain reports availability and
+  // nothing else, so pulling /api/pricing would spend an upstream call on data
+  // the page does not render.
+  function load() {
+    var want = getRange();
+    fetch('/api/model-status?range=' + encodeURIComponent(want), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        // A failed refresh keeps the previous payload on screen; replacing good
+        // data with an error banner would make a blip look like an outage.
+        failed = !data;
+        // Drop a reply for a window the user already switched away from:
+        // 24h and 7d differ in bucket width, so a late answer would relabel
+        // the strip with the wrong interval.
+        if (data && getRange() === want) statusData = data;
+        // Labels carry the window and bucket width, so they follow the payload.
+        applyI18n();
+        render();
+      })
+      .catch(function () {
+        failed = true;
+        render();
+      });
+  }
+
+  document.querySelectorAll('[data-lang-btn]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      localStorage.setItem(LANG_KEY, b.getAttribute('data-lang-btn'));
+      applyI18n();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-range-btn]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var next = b.getAttribute('data-range-btn');
+      if (next === getRange()) return;
+      localStorage.setItem(RANGE_KEY, next);
+      // Old buckets belong to the previous window, so they are cleared rather
+      // than left on screen under a label claiming the new one.
+      statusData = null;
+      applyI18n();
+      render();
+      load();
+    });
+  });
+
+  applyI18n();
+  load();
+  setInterval(load, REFRESH_MS);
+  // A tab left open for hours would otherwise show stale state on return.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) load();
+  });
+})();
+</script>
+
+</body>
+</html>

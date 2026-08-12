@@ -1,0 +1,29 @@
+[Unit]
+Description=API portal + transparent proxy to upstream provider
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=api-portal
+Group=api-portal
+WorkingDirectory=/opt/api-portal
+EnvironmentFile=/etc/api-portal/gateway.env
+ExecStart=/usr/bin/node /opt/api-portal/server.js
+Restart=always
+RestartSec=3s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+
+# Secrets live in the EnvironmentFile, so keep the unit from leaking them
+# through a world-readable working tree or a writable system.
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictSUIDSGID=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

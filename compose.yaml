@@ -1,0 +1,33 @@
+services:
+  api-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: api-portal:latest
+    container_name: api-portal
+    restart: unless-stopped
+    ports:
+      - "3401:3401"
+    environment:
+      # Required for access from outside the container.
+      HOST: 0.0.0.0
+      PORT: 3401
+
+      # Provider and access configuration.
+      UPSTREAM_BASE: ${UPSTREAM_BASE}
+      UPSTREAM_KEY: ${UPSTREAM_KEY}
+      CLIENT_KEYS: ${CLIENT_KEYS:-}
+      PASSTHROUGH: ${PASSTHROUGH:-0}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
+
+      # Limits and billing.
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-104857600}
+      CREDITS_PER_USD: ${CREDITS_PER_USD:-10000}
+
+      # Optional provider dashboard telemetry.
+      UPSTREAM_SESSION: ${UPSTREAM_SESSION:-}
+      UPSTREAM_SESSION_USER: ${UPSTREAM_SESSION_USER:-}
+
+      # Optional paths inside the container. Mount matching files if used.
+      PUBLIC_DIR: ${PUBLIC_DIR:-/app/public}
+      NEWS_FILE: ${NEWS_FILE:-/app/news.json}

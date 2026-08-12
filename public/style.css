@@ -1,0 +1,692 @@
+/* =====================================================================
+   Codex API Portal — Glassmorphism Dark
+   Design system: ui-ux-pro-max-skill (Modern Dark Cinema + Glassmorphism)
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---- palette ---- */
+  --bg-deep: #020203;
+  --bg-base: #050506;
+  --bg-elevated: #0a0a0f;
+  --fg: #EDEDEF;
+  --fg-muted: #8A8F98;
+  --fg-dim: #5C616B;
+  --accent: #5E6AD2;
+  --accent-2: #7C87F0;
+  --accent-glow: rgba(94, 106, 210, 0.35);
+  --accent-soft: rgba(94, 106, 210, 0.12);
+  --ok: #3FD68C;
+  --warn: #F2C16D;
+  --bad: #FF5D6E;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+
+  /* ---- glass surfaces ---- */
+  --glass-bg: rgba(255, 255, 255, 0.045);
+  --glass-bg-hover: rgba(255, 255, 255, 0.07);
+  --glass-blur: 20px;
+
+  /* ---- motion ---- */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 220ms;
+
+  /* ---- shadows ---- */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 32px 80px rgba(0, 0, 0, 0.6);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+
+/* Гарантирует, что атрибут [hidden] всегда прячет элемент,
+   даже если на нём задан display:flex/grid/block и т.п. */
+[hidden] { display: none !important; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--fg);
+  font: 15px/1.55 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  position: relative;
+  letter-spacing: -0.01em;
+}
+
+/* ---- ambient blobs background ---- */
+.bg-blobs {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 800px at 100% -10%, rgba(94, 106, 210, 0.12), transparent 55%),
+    radial-gradient(900px 700px at -10% 110%, rgba(124, 135, 240, 0.08), transparent 50%),
+    linear-gradient(180deg, var(--bg-base), var(--bg-deep));
+}
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.45;
+  animation: float var(--blob-dur, 24s) var(--ease) infinite;
+  will-change: transform;
+}
+.blob.b1 { width: 520px; height: 520px; top: -120px; right: -80px;
+  background: radial-gradient(circle, rgba(94,106,210,0.55), transparent 65%);
+  --blob-dur: 28s; }
+.blob.b2 { width: 460px; height: 460px; bottom: -140px; left: -100px;
+  background: radial-gradient(circle, rgba(124,135,240,0.40), transparent 65%);
+  --blob-dur: 34s; animation-delay: -6s; }
+.blob.b3 { width: 360px; height: 360px; top: 40%; left: 55%;
+  background: radial-gradient(circle, rgba(63,214,140,0.18), transparent 65%);
+  --blob-dur: 40s; animation-delay: -12s; }
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -30px) scale(1.06); }
+  66% { transform: translate(-30px, 40px) scale(0.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blob { animation: none; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ---- layout ---- */
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.mono { font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace; }
+.muted { color: var(--fg-muted); }
+.dim { color: var(--fg-dim); }
+.spacer { height: 18px; }
+
+a { color: var(--accent-2); text-decoration: none; transition: color var(--dur) var(--ease); }
+a:hover { color: var(--fg); }
+
+/* ---- glass panel base ---- */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* =====================================================================
+   NEWS CARD (под хедером, заметный)
+   ===================================================================== */
+.news-card {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 14px;
+  margin-bottom: 18px;
+  padding: 16px 18px 16px 20px;
+  background: linear-gradient(90deg, var(--accent-soft), rgba(255, 255, 255, 0.03));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid rgba(94, 106, 210, 0.35);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(94, 106, 210, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  animation: news-in 0.5s var(--ease);
+}
+/* акцентная левая полоса */
+.news-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+@keyframes news-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.news-card-icon {
+  flex: 0 0 auto;
+  width: 38px; height: 38px; border-radius: 11px;
+  display: grid; place-items: center;
+  background: linear-gradient(180deg, var(--accent), #4A55B0);
+  color: #fff;
+  box-shadow: 0 6px 18px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.news-card-icon svg { width: 19px; height: 19px; }
+.news-card-body { flex: 1 1 auto; min-width: 0; padding-top: 1px; }
+.news-card-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+  color: var(--accent-2); margin-bottom: 5px;
+  font-family: 'Inter', sans-serif;
+}
+.news-card-text {
+  font-size: 14.5px; line-height: 1.55; color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.news-card-text code { background: rgba(94,106,210,0.18); padding: 1px 6px; border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+.news-card-text strong { font-weight: 700; color: #fff; }
+.news-card-text em { font-style: italic; color: var(--accent-2); }
+.news-card-text a { color: var(--accent-2); text-decoration: underline; }
+.news-card-close {
+  flex: 0 0 auto; width: 30px; height: 30px;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid transparent;
+  color: var(--fg-muted); border-radius: 8px; cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.news-card-close:hover { background: rgba(255,255,255,0.08); color: var(--fg); border-color: var(--border-strong); }
+.news-card-close svg { width: 14px; height: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .news-card { animation: none; }
+}
+
+/* =====================================================================
+   BUTTONS
+   ===================================================================== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(180deg, var(--accent), #4A55B0);
+  color: #fff; font-weight: 600; font-size: 15px;
+  padding: 13px 18px; width: 100%;
+  font-family: inherit;
+  transition: filter var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  box-shadow: 0 8px 24px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.btn:hover { filter: brightness(1.1); box-shadow: 0 12px 32px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.22); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: default; filter: none; }
+.btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.btn svg { width: 18px; height: 18px; }
+
+.btn.ghost {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border: 1px solid var(--border-strong);
+  color: var(--fg); font-weight: 500; width: auto; padding: 9px 14px;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.btn.ghost:hover { background: var(--glass-bg-hover); filter: none;
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255,255,255,0.08); }
+.btn.ghost.mini { padding: 7px 12px; font-size: 12.5px; }
+.btn.ghost svg { width: 14px; height: 14px; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(94, 106, 210, 0.3);
+  color: var(--accent-2);
+  border-radius: var(--radius-pill);
+  padding: 7px 14px; font-size: 13px; font-weight: 600;
+}
+.pill svg { width: 14px; height: 14px; }
+
+/* =====================================================================
+   LOGIN
+   ===================================================================== */
+#login { min-height: 100vh; display: flex; align-items: center; }
+.login-grid {
+  display: grid; grid-template-columns: 1fr 460px; gap: 72px;
+  align-items: center; width: 100%;
+}
+.hero h1 {
+  font-size: 44px; line-height: 1.08; letter-spacing: -0.03em;
+  margin: 20px 0 18px; font-weight: 800;
+  background: linear-gradient(180deg, #fff 30%, rgba(255,255,255,0.6));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero p { color: var(--fg-muted); font-size: 16.5px; max-width: 520px; margin: 0 0 32px;
+  line-height: 1.6; }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; max-width: 420px; }
+.stat-card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px 18px;
+  transition: all var(--dur) var(--ease);
+}
+.stat-card:hover { background: var(--glass-bg-hover); transform: translateY(-2px);
+  border-color: var(--border-strong); }
+.stat-card .n { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
+.stat-card .l { color: var(--fg-muted); font-size: 12.5px; margin-top: 4px; }
+
+/* login card */
+.card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 34px 32px;
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.avatar {
+  width: 56px; height: 56px; border-radius: 16px;
+  background: linear-gradient(180deg, var(--accent), #4A55B0);
+  display: grid; place-items: center; margin: 0 auto 14px;
+  box-shadow: 0 8px 24px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.avatar svg { width: 26px; height: 26px; }
+.card h2 { text-align: center; margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.card .sub { text-align: center; color: var(--fg-muted); margin: 0 0 24px; font-size: 14px; }
+label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--fg); }
+textarea, input, select {
+  width: 100%; background: rgba(0,0,0,0.35);
+  border: 1px solid var(--border-strong); border-radius: 12px; color: var(--fg);
+  font: 14px/1.5 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  padding: 14px; resize: vertical; outline: none;
+  transition: border var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+textarea:focus, input:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: rgba(0,0,0,0.5);
+}
+textarea { min-height: 96px; }
+.card .foot { text-align: center; color: var(--fg-dim); font-size: 12px; margin-top: 14px; line-height: 1.5; }
+.err {
+  display: none;
+  background: rgba(255, 93, 110, 0.08);
+  border: 1px solid rgba(255, 93, 110, 0.3);
+  color: #FF8A98;
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 14px;
+}
+
+/* =====================================================================
+   DASHBOARD
+   ===================================================================== */
+#dash { min-height: 100vh; padding: 24px 0 64px; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px; gap: 12px; flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+.brand .dot {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: linear-gradient(180deg, var(--accent), #4A55B0);
+  display: grid; place-items: center;
+  box-shadow: 0 6px 18px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.22);
+}
+.brand .dot svg { width: 18px; height: 18px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lang-select {
+  width: auto; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 13px;
+  cursor: pointer; border-radius: 10px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+
+/* ---- language switch (floating, общий для всех экранов) ---- */
+.lang-switch-float {
+  position: fixed;
+  top: 18px; right: 22px;
+  z-index: 100;
+}
+
+/* ---- language toggle (segmented, prominent) ---- */
+.lang-toggle {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.lang-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px; border: 0; cursor: pointer;
+  background: transparent; color: var(--fg-muted);
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-pill);
+  transition: all var(--dur) var(--ease);
+  position: relative;
+}
+.lang-btn .lang-flag { font-size: 15px; line-height: 1; }
+.lang-btn:hover { color: var(--fg); background: rgba(255, 255, 255, 0.05); }
+.lang-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lang-btn.active {
+  color: #fff;
+  background: linear-gradient(180deg, var(--accent), #4A55B0);
+  box-shadow: 0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.keytag {
+  font: 12.5px 'JetBrains Mono', monospace; color: var(--fg-muted);
+  background: var(--glass-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+}
+
+.grid { display: grid; gap: 16px; }
+
+.usage-rates { padding-bottom: 18px; }
+.usage-rates h3 { margin-bottom: 6px; }
+.usage-rates-note { margin: 0; color: var(--fg-muted); font-size: 13px; line-height: 1.5; }
+/* Header row: title block on the left, optional summary badge on the right.
+   The pricing panel has a single child, so flex leaves it unchanged. */
+.usage-rates-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* Credit prices ("1080 / 5400") are much wider than the old "1x" coefficients,
+   so the grid uses auto-fill with a min width instead of a fixed 5 columns. */
+/* One row per model carries three things -- id, price, live state -- so the
+   cells are wider than the old price-only grid and the row may wrap the state
+   under the id instead of squeezing a model name into an ellipsis. */
+.usage-rates-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+.usage-rates-list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.025); }
+.usage-rates-list code { flex: 1 1 auto; min-width: 0; color: var(--fg); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usage-rates-list .mprice { flex: 0 0 auto; color: var(--accent); font-size: 13px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.usage-rates-list strong { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.usage-rates-list .status-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
+.usage-rates-list .status-meta { color: var(--fg-muted); font-size: 11px; font-style: normal; font-variant-numeric: tabular-nums; }
+.usage-rates-list .tier-hint { color: var(--warn, #ffa14d); font-size: 11px; font-style: normal; cursor: help; }
+
+.status-summary { flex: 0 0 auto; align-self: flex-start; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+
+/* Range toggle on the status page. Same segmented shape as the language switch
+   so the two read as one control family, but smaller: this one sits inside a
+   panel header next to the model count, not floating over the page. */
+.sp-head-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+.sp-range {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.sp-range-btn {
+  padding: 6px 12px; border: 0; cursor: pointer;
+  background: transparent; color: var(--fg-muted);
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  border-radius: var(--radius-pill);
+  transition: all var(--dur) var(--ease);
+}
+.sp-range-btn:hover { color: var(--fg); background: rgba(255, 255, 255, 0.05); }
+.sp-range-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sp-range-btn[aria-pressed="true"] {
+  color: #fff;
+  background: linear-gradient(180deg, var(--accent), #4A55B0);
+  box-shadow: 0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.cols-2 { grid-template-columns: 1.4fr 1fr; }
+
+.panel {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.panel:hover { border-color: var(--border-strong); }
+.panel h3 {
+  margin: 0 0 14px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--fg-dim); font-weight: 600;
+  display: flex; align-items: center; gap: 7px;
+}
+.panel h3 svg { width: 13px; height: 13px; }
+
+.big { font-size: 36px; font-weight: 700; letter-spacing: -0.03em; line-height: 1;
+  font-family: 'JetBrains Mono', monospace; color: #fff; }
+.big.small { font-size: 26px; }
+.sub2 { color: var(--fg-muted); font-size: 13px; margin-top: 7px; }
+
+/* Credit cost under a token count in the requests table. Smaller and dimmer on
+   purpose: the token number stays the primary value of the cell. */
+.tsub { color: var(--fg-muted); font-size: 11px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+.bar { height: 8px; border-radius: var(--radius-pill);
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+  overflow: hidden; margin-top: 16px; }
+.bar > i { display: block; height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-radius: var(--radius-pill);
+  transition: width 0.5s var(--ease), background 0.3s var(--ease);
+  box-shadow: 0 0 12px var(--accent-glow); }
+
+/* chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 10px;
+  font-size: 12px; color: var(--fg);
+  font-family: 'JetBrains Mono', monospace;
+  transition: all var(--dur) var(--ease);
+}
+.chip:hover { background: var(--glass-bg-hover); border-color: var(--border-strong); }
+
+/* chart */
+.chart { display: flex; align-items: flex-end; gap: 6px; height: 130px; margin-top: 6px; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; height: 100%; justify-content: flex-end; }
+.chart .col i { width: 100%; max-width: 26px;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  border-radius: 5px 5px 0 0; min-height: 2px;
+  transition: height 0.5s var(--ease), filter var(--dur) var(--ease);
+  box-shadow: 0 0 10px var(--accent-glow); }
+.chart .col:hover i { filter: brightness(1.25); }
+.chart .col span { font-size: 10px; color: var(--fg-dim);
+  font-family: 'JetBrains Mono', monospace; }
+
+/* table */
+.table-scroll { overflow-x: auto; margin: 0 -8px; padding: 0 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--fg-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+td.mono { font-family: 'JetBrains Mono', monospace; }
+tbody tr { transition: background var(--dur) var(--ease); }
+tbody tr:hover { background: rgba(255,255,255,0.025); }
+.dot-ok { color: var(--ok); display: inline-flex; align-items: center; gap: 4px; }
+.dot-bad { color: var(--bad); display: inline-flex; align-items: center; gap: 4px; cursor: help; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block;
+  box-shadow: 0 0 6px currentColor; }
+
+/* code block */
+pre {
+  margin: 0; background: rgba(0,0,0,0.45);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; overflow-x: auto;
+  font: 12.5px/1.6 'JetBrains Mono', ui-monospace, monospace;
+  color: #C9D1E8; white-space: pre;
+}
+
+/* =====================================================================
+   GUIDES (внутри панели подключения, таб "Гайды")
+   ===================================================================== */
+#guidesPanel { margin-top: 4px; }
+
+/* контент одного гайда (показывается по активному табу) */
+.guide-pane {
+  padding: 4px 2px 6px;
+  color: var(--fg-muted);
+  font-size: 14px; line-height: 1.65;
+  animation: guide-in 0.3s var(--ease);
+}
+.guide-pane[hidden] { display: none; }
+@keyframes guide-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.guide-pane ol, .guide-pane ul { margin: 8px 0; padding-left: 22px; }
+.guide-pane li { margin: 6px 0; }
+.guide-pane p { margin: 8px 0; }
+.guide-pane b, .guide-pane strong { color: var(--fg); }
+.guide-pane code { background: rgba(94,106,210,0.14); padding: 1px 6px; border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--accent-2); }
+.guide-pane pre { margin-top: 12px; }
+.guide-pane pre code { background: transparent; padding: 0; color: inherit; }
+@media (prefers-reduced-motion: reduce) { .guide-pane { animation: none; } }
+
+/* connection panel */
+.conn-top { display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.conn-base { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.conn-label { font-size: 10.5px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 600; }
+.conn-url {
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent-2);
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 11px;
+}
+.tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.tab {
+  background: transparent; border: 1px solid var(--border); color: var(--fg-muted);
+  border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  transition: all var(--dur) var(--ease);
+}
+.tab:hover { color: var(--fg); border-color: var(--border-strong); }
+.tab.active {
+  background: var(--accent-soft); border-color: rgba(94, 106, 210, 0.4); color: var(--accent-2);
+}
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- OS switch for the connection guides ---- */
+.os-row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+.os-row .os-hint { font-size: 12px; color: var(--fg-muted); }
+.os-toggle {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+}
+.os-btn {
+  background: transparent; border: 0; cursor: pointer; color: var(--fg-muted);
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: var(--radius-pill);
+  transition: all var(--dur) var(--ease);
+}
+.os-btn:hover { color: var(--fg); background: rgba(255, 255, 255, 0.05); }
+.os-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.os-btn.active { color: #fff; background: var(--accent); }
+/* Label above an alternative shell block (PowerShell / cmd.exe). */
+.os-label {
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--fg-muted);
+  margin: 12px 0 4px;
+}
+
+/* by-model list */
+.mlist { display: flex; flex-direction: column; gap: 12px; }
+.mrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mrow .nm { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+.mrow .mbar { flex: 1; height: 6px; background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+  border-radius: var(--radius-pill); overflow: hidden; max-width: 160px; }
+.mrow .mbar > i { display: block; height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 8px var(--accent-glow); transition: width 0.5s var(--ease); }
+.mrow .v { color: var(--fg-muted); font-size: 12px; min-width: 110px; text-align: right;
+  font-family: 'JetBrains Mono', monospace; }
+
+/* ---- responsive ---- */
+@media (max-width: 1024px) {
+  .hero h1 { font-size: 36px; }
+}
+@media (max-width: 900px) {
+  .usage-rates-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .login-grid { grid-template-columns: 1fr; gap: 40px; }
+  .hero h1 { font-size: 30px; }
+  .cols-3, .cols-2 { grid-template-columns: 1fr; }
+  .topbar-right { width: 100%; }
+  .news-inner { padding: 10px 16px; }
+  .wrap { padding: 0 16px; }
+  .big { font-size: 30px; }
+}
+@media (max-width: 480px) {
+  .card { padding: 26px 22px; }
+  .panel { padding: 18px 18px; }
+  .topbar-right .keytag { display: none; }
+  .lang-switch-float { top: 12px; right: 14px; }
+  .lang-btn { padding: 6px 11px; font-size: 12px; }
+}
+
+/* ---- scrollbar ---- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); background-clip: padding-box; border: 2px solid transparent; }
+
+/* ---- focus ---- */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- status page (status.example.com) ------------------------------- */
+/* Reuses .panel / .usage-rates-list from the portal so the status page and
+   the dashboard cannot drift apart visually; only the page-specific chrome
+   below is new. */
+.status-page {
+  background: var(--bg-deep);
+  color: var(--fg);
+  /* Empty timeline cell. Kept as a variable because both the strip (inline
+     style from JS) and the legend swatch must use the exact same grey, or a
+     "no requests" cell would read as a different state in the two places. */
+  --sp-cell-empty: rgba(255, 255, 255, 0.09);
+}
+.sp-wrap { padding-top: 64px; padding-bottom: 64px; display: grid; gap: 20px; max-width: 1180px; }
+.sp-head { display: grid; gap: 12px; justify-items: start; }
+.sp-head h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+.sp-head p { margin: 0; max-width: 70ch; font-size: 14px; line-height: 1.6; }
+
+
+/* The portal's row carries id + price + status, so it needs ~330px. The status
+   page dropped the price column, leaving ~200px of dead space in the middle of
+   every row and a lone card in the last row. Narrower tracks with auto-fit let
+   the rows fill the width instead. */
+/* The status page carries a much longer metric string than the portal's price
+   column ("98.65% uptime over 24h · medium latency"), and the shared rule keeps
+   the status block on one unshrinkable nowrap line. Left as is it spilled out of
+   the card and printed over the neighbour's label, so here the row stacks:
+   model id on top, state + metrics underneath, free to wrap. */
+.status-page .usage-rates-list { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.status-page .usage-rates-list li { flex-direction: column; align-items: flex-start; gap: 6px; }
+.status-page .usage-rates-list code { flex: 0 0 auto; max-width: 100%; }
+.status-page .usage-rates-list strong { flex: 0 1 auto; max-width: 100%; flex-wrap: wrap; white-space: normal; row-gap: 2px; }
+.status-page .usage-rates-list .status-meta { min-width: 0; overflow-wrap: anywhere; }
+
+/* Placeholder row must span the whole grid, otherwise "Loading" sits in a
+   narrow first column and reads like a model id. */
+.usage-rates-list li.sp-empty { grid-column: 1 / -1; justify-content: center; color: var(--fg-muted); }
+.usage-rates-list li.sp-empty code { flex: 0 0 auto; color: var(--fg-muted); }
+
+/* Per-model availability timeline: one cell per provider bucket (48 x 30min for
+   the 24h range). flex with min-width:0 rather than a fixed cell width so the
+   strip always spans exactly the card, whatever the column count. */
+.sp-strip-wrap { width: 100%; display: grid; gap: 4px; margin-top: 2px; }
+.sp-strip { display: flex; gap: 2px; align-items: stretch; height: 26px; }
+.sp-strip .sp-cell {
+  flex: 1 1 0; min-width: 0; border-radius: 2px;
+  /* Cells are the only hover target on the page; the cursor is the hint that a
+     tooltip exists, since the title attribute gives no visual affordance. */
+  cursor: help;
+  transition: transform .1s ease, filter .1s ease;
+}
+.sp-strip .sp-cell:hover { transform: scaleY(1.12); filter: brightness(1.25); }
+.sp-strip-axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+
+/* Legend swatch mimicking the strip so the row reads as "this is that bar". */
+.sp-legend-strip {
+  flex: 0 0 auto; position: relative; top: 3px;
+  width: 34px; height: 9px; border-radius: 2px;
+  background: linear-gradient(90deg,
+    var(--sp-cell-empty) 0 26%, #10b981 26% 52%, #f59e0b 52% 74%, #f43f5e 74% 100%);
+}
+
+.sp-legend-list { display: grid; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.sp-legend-list li { display: flex; align-items: baseline; gap: 9px; font-size: 13px; line-height: 1.5; color: var(--fg-muted); }
+.sp-legend-list .status-dot { width: 7px; height: 7px; flex: 0 0 auto; position: relative; top: 5px; }
+
+@media (max-width: 900px) {
+  .sp-wrap { padding-top: 56px; }
+  .sp-head h1 { font-size: 27px; }
+}
