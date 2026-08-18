@@ -62,6 +62,7 @@
       'dash.ofPackage': 'из —',
       'dash.used': 'Списано',
       'dash.usedSub': 'всего израсходовано кредитов',
+      'dash.usedTokenSub': 'всего израсходовано токенов',
       'dash.plan': 'Тариф',
       'dash.noExpiry': 'действует до тех пор, пока вы не потратите все свои кредиты',
       'dash.connect': 'Подключение API',
@@ -144,6 +145,7 @@
       'dash.ofPackage': 'of —',
       'dash.used': 'Spent',
       'dash.usedSub': 'total credits spent',
+      'dash.usedTokenSub': 'total tokens spent',
       'dash.plan': 'Plan',
       'dash.noExpiry': 'valid until you spend all your credits',
       'dash.connect': 'API connection',
@@ -877,8 +879,13 @@
     const data = window._lastData || {};
     const analytics = data.analytics;
     const unit = getUnit();
+    const isTokens = unit === 'tokens';
     const notice = $('#analyticsNotice');
+    const usedEl = $('#used');
+    const usedSubEl = $('#usedSub');
     syncUnitToggle();
+
+    if (usedSubEl) usedSubEl.textContent = t(isTokens ? 'dash.usedTokenSub' : 'dash.usedSub');
 
     if (notice) {
       const state = data.analytics_status || (analytics ? 'live' : 'unavailable');
@@ -887,6 +894,7 @@
     }
 
     if (!analytics) {
+      if (usedEl) usedEl.textContent = isTokens ? '—' : fmtCr(data.used_credits || 0);
       $('#reqTotal').textContent = '—';
       $('#successRate').textContent = '—';
       $('#chart').innerHTML = `<div class="muted2">${t('noData')}</div>`;
@@ -904,15 +912,15 @@
 
     const spentTok = Number(analytics.spent_tokens || 0);
     const cachedTok = Number(analytics.cached_tokens || 0);
+    if (usedEl) usedEl.textContent = isTokens ? fmt(spentTok) : fmtCr(data.used_credits || 0);
     const tokEl = $('#usedTokens');
     if (tokEl) {
-      tokEl.hidden = spentTok <= 0;
+      tokEl.hidden = isTokens || spentTok <= 0;
       tokEl.textContent = cachedTok > 0
         ? t('dash.spentTokensCached').replace('{n}', fmt(spentTok)).replace('{c}', fmt(cachedTok))
         : t('dash.spentTokens').replace('{n}', fmt(spentTok));
     }
 
-    const isTokens = unit === 'tokens';
     const unitLabel = isTokens ? t('dash.unitTokens').toLowerCase() : t('credits');
     const chartTitle = $('#chartTitle');
     const byModelTitle = $('#byModelTitle');
