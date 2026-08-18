@@ -9,16 +9,20 @@
   const SESSION_KEY = 'cx_key';
   const LANG_KEY = 'cx_lang';
   const OS_KEY = 'cx_os';
+  const UNIT_KEY = 'cx_usage_unit';
   const NEWS_CLOSED_KEY = 'cx_news_closed_id';
 
   // Tabs whose commands genuinely differ per OS. Everything else (Python, Node,
   // the GUI clients) is identical everywhere, and showing an OS switch there
   // would imply a difference that does not exist.
-  const OS_TABS = ['curl', 'claude', 'codex', 'aider', 'continue'];
+  const OS_TABS = ['curl', 'grok', 'claude', 'codex', 'aider', 'continue'];
 
   // The server derives this from PUBLIC_ORIGIN. Keep the current origin as a
   // usable fallback when the configuration endpoint is temporarily unavailable.
   let BASE_URL = `${window.location.origin}/v1`;
+  let PUBLIC_URL = window.location.origin;
+  let STATUS_URL = `${window.location.origin}/status`;
+  let PORTAL_NAME = 'API PORTAL';
 
   async function loadConfig() {
     try {
@@ -28,6 +32,12 @@
       if (typeof config.base_url === 'string' && config.base_url) {
         BASE_URL = config.base_url;
       }
+      if (typeof config.public_url === 'string' && config.public_url) PUBLIC_URL = config.public_url;
+      if (typeof config.status_url === 'string' && config.status_url) STATUS_URL = config.status_url;
+      if (typeof config.portal_name === 'string' && config.portal_name) PORTAL_NAME = config.portal_name;
+      const statusLink = $('#statusLink');
+      if (statusLink) statusLink.href = STATUS_URL;
+      document.querySelectorAll('[data-brand]').forEach((el) => { el.textContent = PORTAL_NAME; });
     } catch (_) {
       // The fallback above keeps the portal usable during a transient failure.
     }
@@ -36,10 +46,10 @@
   // ---------------- i18n ----------------
   const I18N = {
     ru: {
-      'page.title': 'api-portal API — Портал клиента',
+      'page.title': 'Портал клиента',
       'hero.badge': 'Портал по API-ключу',
-      'hero.title': 'Войдите, чтобы управлять своим API-ключом api-portal',
-      'hero.subtitle': 'Введите ключ без срока — и увидите остаток токенов, расход за день и месяц, доступные модели и срок действия.',
+      'hero.title': 'Ваш ключ. Ваш доступ. Один портал.',
+      'hero.subtitle': 'Баланс, фактическое потребление, доступные модели и готовые конфигурации клиентов.',
       'hero.oneClick': '1 клик',
       'hero.copyConfig': 'копировать конфиг',
       'login.title': 'Вход для клиента',
@@ -72,13 +82,21 @@
       'dash.statusLink': 'Статус сервиса',
       'dash.spentTokens': 'израсходовано {n} токенов',
       'dash.spentTokensCached': 'израсходовано {n} токенов, из кэша {c}',
-      'dash.requests': 'Запросы (30д)',
+      'dash.requests': 'Запросы в журнале',
       'dash.totalCalls': 'всего вызовов',
       'dash.success': 'Успешность',
       'dash.recentReqs': 'от недавних запросов',
       'dash.availableModels': 'Доступные модели',
-      'dash.tokens14': 'Расход кредитов — за 14 дней',
-      'dash.byModel': 'По моделям (30д)',
+      'dash.tokens14': 'Расход — за 14 дней',
+      'dash.byModel': 'По моделям',
+      'dash.analytics': 'Потребление',
+      'dash.unitLabel': 'Показывать',
+      'dash.unitCredits': 'Кредиты',
+      'dash.unitTokens': 'Токены',
+      'sync.live': 'Синхронизировано {time}',
+      'sync.cached': 'Последний снимок · {time}',
+      'sync.stale': 'Данные журнала временно устарели',
+      'sync.unavailable': 'Журнал New API временно недоступен — нули не подставлены',
       'dash.recent': 'Недавние запросы',
       'dash.t.time': 'Время',
       'dash.t.model': 'Модель',
@@ -110,10 +128,10 @@
       'requests': 'запр.',
     },
     en: {
-      'page.title': 'api-portal API — Customer portal',
+      'page.title': 'Customer portal',
       'hero.badge': 'Portal by API-key',
-      'hero.title': 'Sign in to manage your api-portal API key',
-      'hero.subtitle': 'Enter your no-expiry key to see token balance, daily and monthly usage, available models and validity.',
+      'hero.title': 'Your key. Your access. One portal.',
+      'hero.subtitle': 'Balance, measured usage, available models, and ready-to-use client configurations.',
       'hero.oneClick': '1 click',
       'hero.copyConfig': 'copy config',
       'login.title': 'Sign in',
@@ -146,13 +164,21 @@
       'dash.statusLink': 'Service status',
       'dash.spentTokens': '{n} tokens spent',
       'dash.spentTokensCached': '{n} tokens spent, {c} from cache',
-      'dash.requests': 'Requests (30d)',
+      'dash.requests': 'Requests in log',
       'dash.totalCalls': 'total calls',
       'dash.success': 'Success',
       'dash.recentReqs': 'of recent requests',
       'dash.availableModels': 'Available models',
-      'dash.tokens14': 'Credit usage — last 14 days',
-      'dash.byModel': 'By model (30d)',
+      'dash.tokens14': 'Usage — last 14 days',
+      'dash.byModel': 'By model',
+      'dash.analytics': 'Usage',
+      'dash.unitLabel': 'Display',
+      'dash.unitCredits': 'Credits',
+      'dash.unitTokens': 'Tokens',
+      'sync.live': 'Synced {time}',
+      'sync.cached': 'Last snapshot · {time}',
+      'sync.stale': 'Request log data is temporarily stale',
+      'sync.unavailable': 'New API log is temporarily unavailable — no zero values were substituted',
       'dash.recent': 'Recent requests',
       'dash.t.time': 'Time',
       'dash.t.model': 'Model',
@@ -211,7 +237,7 @@
     document.documentElement.lang = lang;
     syncLangToggle(lang);
     // перерисуем дашборд если есть данные
-    if (window._lastData) render(window._lastData, window._lastKey);
+    if (window._lastData) render(window._lastData, window._lastKey, { silent: true, refreshRemote: false });
   }
   function syncLangToggle(lang) {
     document.querySelectorAll('[data-lang-btn]').forEach((b) => {
@@ -223,6 +249,23 @@
   function t(key) {
     const lang = getLang();
     return (I18N[lang] && I18N[lang][key]) || (I18N.ru[key]) || key;
+  }
+
+  function getUnit() {
+    return localStorage.getItem(UNIT_KEY) === 'tokens' ? 'tokens' : 'credits';
+  }
+
+  function syncUnitToggle() {
+    const unit = getUnit();
+    document.querySelectorAll('[data-unit-btn]').forEach((button) => {
+      button.setAttribute('aria-pressed', button.getAttribute('data-unit-btn') === unit ? 'true' : 'false');
+    });
+  }
+
+  function setUnit(unit) {
+    localStorage.setItem(UNIT_KEY, unit === 'tokens' ? 'tokens' : 'credits');
+    syncUnitToggle();
+    renderAnalytics();
   }
 
   // ---------------- OS variants ----------------
@@ -381,7 +424,7 @@
    * falls back to the plain sample so the markup never renders an empty model.
    */
   function applyModelTpl() {
-    document.querySelectorAll('[data-model-tpl]').forEach((el) => {
+    document.querySelectorAll('[data-model-tpl], [data-connection-tpl]').forEach((el) => {
       const want = el.getAttribute('data-model-tpl');
       const subset = want === 'gpt' ? gptModels() : want === 'claude' ? claudeModels() : [];
       const m = subset[0] || sampleModel();
@@ -391,7 +434,10 @@
       if (el.dataset.tplRaw == null) el.dataset.tplRaw = el.textContent;
       el.textContent = el.dataset.tplRaw
         .split('{fast_model}').join(fast)
-        .split('{model}').join(m);
+        .split('{model}').join(m)
+        .split('{base_url}').join(BASE_URL)
+        .split('{public_url}').join(PUBLIC_URL)
+        .split('{api_key}').join(window._lastKey || 'sk-...');
     });
   }
 
@@ -440,11 +486,19 @@
       // {model} is substituted here rather than in a later pass: the source of
       // truth stays the attribute, so re-running with another language cannot
       // resurrect a stale model name.
-      try { const obj = JSON.parse(raw); if (obj.html != null) el.innerHTML = obj.html.split('{model}').join(esc(model)); }
+      try {
+        const obj = JSON.parse(raw);
+        if (obj.html != null) {
+          el.innerHTML = obj.html
+            .split('{model}').join(esc(model))
+            .split('{base_url}').join(esc(BASE_URL))
+            .split('{public_url}').join(esc(PUBLIC_URL));
+        }
+      }
       catch (_) { /* оставляем как есть при ошибке парсинга */ }
     });
     applyModelTpl();
-    document.title = t('page.title');
+    document.title = PORTAL_NAME + ' — ' + t('page.title');
   }
 
   // ---------------- helpers ----------------
@@ -507,7 +561,9 @@
       if (!r.ok) throw new Error('http ' + r.status);
       const data = await r.json();
       sessionStorage.setItem(SESSION_KEY, key);
+      resetBtn(btn, orig);
       render(data, key);
+      startDashboardRefresh();
     } catch (e) {
       showErr(t('err.network'));
       resetBtn(btn, orig);
@@ -522,6 +578,7 @@
   // window, then retries once on its own. Without this the user hammers the
   // button and keeps the limit alive.
   let retryTimer = null;
+  let dashboardTimer = null;
   function startRetryCountdown(btn, orig, seconds) {
     if (retryTimer) clearInterval(retryTimer);
     let left = Math.max(1, Math.round(seconds));
@@ -543,11 +600,16 @@
     retryTimer = setInterval(tick, 1000);
   }
   function logout() {
+    if (dashboardTimer) clearInterval(dashboardTimer);
+    dashboardTimer = null;
     sessionStorage.removeItem(SESSION_KEY);
     $('#dash').hidden = true;
     $('#login').style.display = 'flex';
     $('#key').value = '';
     window._lastData = null;
+    window._lastKey = null;
+    pricingData = null;
+    statusData = null;
     window.scrollTo(0, 0);
   }
 
@@ -615,7 +677,11 @@
       ? allowed.slice()
       : ((pricingData && pricingData.items) || []).map((x) => x.model).filter(Boolean);
     ids = ids.filter(Boolean);
-    if (!ids.length) return; // keep static fallback until data lands
+    if (!ids.length) {
+      ul.innerHTML = `<li class="sp-empty"><code>${esc(t('noModels'))}</code></li>`;
+      if (summary) summary.textContent = t('status.unknown');
+      return;
+    }
 
     // Cheapest first, matching the price list's own ordering. Models we have no
     // price for sort last instead of jumping to the front on a 0.
@@ -716,7 +782,8 @@
   function renderRecent() {
     const tbody = $('#recent');
     if (!tbody) return;
-    const a = (window._lastData && window._lastData.analytics) || {};
+    const hasAnalytics = Boolean(window._lastData && window._lastData.analytics);
+    const a = hasAnalytics ? window._lastData.analytics : {};
     const rec = a.recent || [];
 
     // Cost per cell is derived from the published per-1M prices, then rescaled
@@ -767,14 +834,122 @@
             <td>${status}</td>
           </tr>`;
         })
-        .join('') || `<tr><td colspan="7" class="muted2">${t('noRequests')}</td></tr>`;
+        .join('') || `<tr><td colspan="7" class="muted2">${hasAnalytics ? t('noRequests') : t('noData')}</td></tr>`;
+  }
+
+  async function refreshDashboard() {
+    const key = window._lastKey;
+    if (!key || document.hidden) return;
+    try {
+      const response = await fetch('/api/portal/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      });
+      if (!response.ok || window._lastKey !== key) return;
+      const data = await response.json();
+      if (window._lastKey === key) render(data, key, { silent: true });
+    } catch (_) {
+      // Keep the last verified snapshot on screen.
+    }
+  }
+
+  function startDashboardRefresh() {
+    if (dashboardTimer) clearInterval(dashboardTimer);
+    dashboardTimer = setInterval(refreshDashboard, 60000);
+  }
+
+  function renderSync(data) {
+    const line = $('#syncLine');
+    const label = $('#syncState');
+    if (!line || !label || !data) return;
+    const rawTime = data.synced_at || data.updated_at;
+    const date = rawTime ? new Date(rawTime) : null;
+    const time = date && !Number.isNaN(date.getTime())
+      ? date.toLocaleTimeString(getLang() === 'ru' ? 'ru-RU' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+      : '—';
+    const stale = data.cached || data.analytics_status === 'stale' || (statusData && statusData.stale);
+    line.classList.toggle('is-stale', Boolean(stale));
+    label.textContent = t(stale ? 'sync.cached' : 'sync.live').replace('{time}', time);
+  }
+
+  function renderAnalytics() {
+    const data = window._lastData || {};
+    const analytics = data.analytics;
+    const unit = getUnit();
+    const notice = $('#analyticsNotice');
+    syncUnitToggle();
+
+    if (notice) {
+      const state = data.analytics_status || (analytics ? 'live' : 'unavailable');
+      notice.hidden = state === 'live';
+      notice.textContent = state === 'stale' ? t('sync.stale') : t('sync.unavailable');
+    }
+
+    if (!analytics) {
+      $('#reqTotal').textContent = '—';
+      $('#successRate').textContent = '—';
+      $('#chart').innerHTML = `<div class="muted2">${t('noData')}</div>`;
+      $('#byModel').innerHTML = `<div class="muted2">${t('noData')}</div>`;
+      const tokEl = $('#usedTokens');
+      if (tokEl) tokEl.hidden = true;
+      renderRecent();
+      return;
+    }
+
+    $('#reqTotal').textContent = fmt(analytics.total_requests || 0);
+    $('#successRate').textContent = analytics.success_rate != null
+      ? Math.round(analytics.success_rate * 100) + '%'
+      : '—';
+
+    const spentTok = Number(analytics.spent_tokens || 0);
+    const cachedTok = Number(analytics.cached_tokens || 0);
+    const tokEl = $('#usedTokens');
+    if (tokEl) {
+      tokEl.hidden = spentTok <= 0;
+      tokEl.textContent = cachedTok > 0
+        ? t('dash.spentTokensCached').replace('{n}', fmt(spentTok)).replace('{c}', fmt(cachedTok))
+        : t('dash.spentTokens').replace('{n}', fmt(spentTok));
+    }
+
+    const isTokens = unit === 'tokens';
+    const unitLabel = isTokens ? t('dash.unitTokens').toLowerCase() : t('credits');
+    const chartTitle = $('#chartTitle');
+    const byModelTitle = $('#byModelTitle');
+    if (chartTitle) chartTitle.textContent = t('dash.tokens14') + ' · ' + unitLabel;
+    if (byModelTitle) byModelTitle.textContent = t('dash.byModel') + ' · ' + unitLabel;
+
+    const days = analytics.tokens_by_day || [];
+    const valueOf = (item) => Number(isTokens ? item.tokens : item.credits) || 0;
+    const maxValue = Math.max(0.01, ...days.map(valueOf));
+    $('#chart').innerHTML = days.map((item) => {
+      const value = valueOf(item);
+      const height = value > 0 ? Math.max(2, Math.round((value / maxValue) * 100)) : 0;
+      const shown = isTokens ? fmt(value) : fmtCr(value);
+      return `<div class="col" title="${esc(item.date)}: ${esc(shown)} ${esc(unitLabel)}"><i style="height:${height}%"></i><span>${esc((item.date || '').slice(5))}</span></div>`;
+    }).join('') || `<div class="muted2">${t('noData')}</div>`;
+
+    const models = analytics.by_model || [];
+    const modelMax = Math.max(0.01, ...models.map(valueOf));
+    $('#byModel').innerHTML = models.map((item) => {
+      const value = valueOf(item);
+      const shown = isTokens ? fmt(value) : fmtCr(value);
+      return `<div class="mrow"><span class="nm">${esc(item.model)}</span>`
+        + `<span class="mbar"><i style="width:${Math.round((value / modelMax) * 100)}%"></i></span>`
+        + `<span class="v">${shown} ${esc(unitLabel)} · ${fmt(item.requests)} ${t('requests')}</span></div>`;
+    }).join('') || `<div class="muted2">${t('noData')}</div>`;
+
+    renderRecent();
   }
 
   async function loadPricing() {
+    const key = window._lastKey;
     try {
       const r = await fetch('/api/pricing', { headers: authHeaders() });
-      if (!r.ok) return;
-      pricingData = await r.json();
+      if (!r.ok || window._lastKey !== key) return;
+      const next = await r.json();
+      if (window._lastKey !== key) return;
+      if ((next && next.items && next.items.length) || !pricingData) pricingData = next;
       renderModels();
       // Prices drive the per-cell credit sublabels too.
       renderRecent();
@@ -784,22 +959,32 @@
   }
 
   async function loadModelStatus() {
+    const key = window._lastKey;
     try {
       const r = await fetch('/api/model-status', { headers: authHeaders() });
-      if (!r.ok) return;
-      statusData = await r.json();
+      if (!r.ok || window._lastKey !== key) return;
+      const next = await r.json();
+      if (window._lastKey !== key) return;
+      if ((next && next.models && next.models.length) || !statusData) statusData = next;
       renderModels();
+      renderSync(window._lastData);
     } catch (_) {
       /* leave placeholder */
     }
   }
 
   // ---------------- render dashboard ----------------
-  function render(d, key) {
+  function render(d, key, options = {}) {
+    if (window._lastKey && window._lastKey !== key) {
+      pricingData = null;
+      statusData = null;
+    }
     window._lastData = d;
     window._lastKey = key;
-    loadPricing();
-    loadModelStatus();
+    if (options.refreshRemote !== false) {
+      loadPricing();
+      loadModelStatus();
+    }
     // A language switch re-runs render(); the merged list must be redrawn from
     // the cached payloads so labels like "Работает" follow the new language
     // without waiting for another round-trip.
@@ -811,7 +996,6 @@
     const remaining = d.remaining_credits != null ? d.remaining_credits : Math.max(0, limit - used);
     const held = d.held_credits || 0;
     const settledUsed = used;
-    const a = d.analytics || {};
 
     $('#keytag').textContent = maskKey(key);
     $('#remaining').textContent = fmtCr(remaining);
@@ -827,7 +1011,7 @@
       const pct = Math.max(0, Math.min(100, (remaining / limit) * 100));
       const bar = $('#remainingBar');
       bar.style.width = pct + '%';
-      bar.style.background = pct < 10 ? 'linear-gradient(90deg,#ff5d73,#ffa14d)' : '';
+      bar.style.background = pct < 10 ? 'var(--bad)' : '';
       if (barWrap) barWrap.hidden = false;
     } else {
       subEl.hidden = true;
@@ -846,27 +1030,6 @@
       holdEl.hidden = true;
     }
 
-    // Tokens behind the credits. Credits alone answer "how much did this cost"
-    // but not "how much work did that buy", which is the question people ask.
-    // It sits under the spend, not under the balance: the numbers describe what
-    // was consumed, so pairing them with what is left read as a contradiction.
-    // Cache reads are shown apart: they bill at a tenth of the rate, so merging
-    // them into one number would make the spend look inconsistent with the cost.
-    const tokEl = $('#usedTokens');
-    if (tokEl) {
-      const spentTok = Number(a.spent_tokens || 0);
-      const cachedTok = Number(a.cached_tokens || 0);
-      if (spentTok > 0) {
-        tokEl.hidden = false;
-        tokEl.textContent = cachedTok > 0
-          ? t('dash.spentTokensCached').replace('{n}', fmt(spentTok)).replace('{c}', fmt(cachedTok))
-          : t('dash.spentTokens').replace('{n}', fmt(spentTok));
-      } else {
-        tokEl.hidden = true;
-        tokEl.textContent = '';
-      }
-    }
-
     // The server publishes a plan label key, never the upstream key's own name
     // (that was an internal label like "Ключ реселлера"). One label for every
     // key, so an older payload or an unknown key still resolves to it.
@@ -879,38 +1042,10 @@
       expiryEl.textContent = t('dash.noExpiry');
     }
 
-    $('#reqTotal').textContent = fmt(a.total_requests || 0);
-    $('#successRate').textContent = a.success_rate != null ? Math.round(a.success_rate * 100) + '%' : '—';
-
     const models = d.allowed_models && d.allowed_models.length ? d.allowed_models : [t('noModels')];
     $('#models').innerHTML = models.map((m) => `<span class="chip">${esc(m)}</span>`).join('');
-
-    // chart
-    const days = a.tokens_by_day || [];
-    const maxv = Math.max(0.01, ...days.map((x) => x.credits || 0));
-    $('#chart').innerHTML =
-      days
-        .map((x) => {
-          const h = Math.round(((x.credits || 0) / maxv) * 100);
-          const lbl = (x.date || '').slice(5);
-          return `<div class="col" title="${esc(x.date)}: ${fmtCr(x.credits)} ${t('credits')}"><i style="height:${h}%"></i><span>${esc(lbl)}</span></div>`;
-        })
-        .join('') || `<div class="muted2" style="font-size:13px">${t('noData')}</div>`;
-
-    // by model
-    const bm = a.by_model || [];
-    const bmMax = Math.max(0.01, ...bm.map((x) => x.credits || 0));
-    $('#byModel').innerHTML =
-      bm
-        .map(
-          (x) => `
-        <div class="mrow"><span class="nm">${esc(x.model)}</span>
-        <span class="mbar"><i style="width:${Math.round(((x.credits || 0) / bmMax) * 100)}%"></i></span>
-        <span class="v">${fmtCr(x.credits)} ${t('credits')} · ${fmt(x.requests)} ${t('requests')}</span></div>`,
-        )
-        .join('') || `<div class="muted2" style="font-size:13px">${t('noData')}</div>`;
-
-    renderRecent();
+    renderAnalytics();
+    renderSync(d);
 
     // Connection snippets use the Base URL supplied by /api/config.
     const base = BASE_URL;
@@ -920,6 +1055,15 @@
     // entitled list is known -- applyI18n() ran before login with no data.
     applyModelTpl();
     applyI18n(getLang());
+    // Dynamic values must be painted after i18n: the generic translated
+    // placeholders otherwise overwrite values such as "of 10,000" and the
+    // selected analytics unit.
+    if (limit > 0) {
+      subEl.textContent = t('dash.ofPackage').replace('—', fmtCr(limit))
+        + (d.balance_mode === 'daily' ? t('daily') : t('package'));
+    }
+    renderModels();
+    renderAnalytics();
     // Entitlements are known only now, so tab visibility is decided here.
     syncTabs();
     const activeTab = document.querySelector('.tab.active');
@@ -932,7 +1076,7 @@
 
     $('#login').style.display = 'none';
     $('#dash').hidden = false;
-    window.scrollTo(0, 0);
+    if (!options.silent) window.scrollTo(0, 0);
   }
 
   // ---------------- news banner ----------------
@@ -979,7 +1123,6 @@
 
   // ---------------- copy config ----------------
   function copyConfig() {
-    const k = sessionStorage.getItem(SESSION_KEY) || '';
     // Same rule as the snippets: ship a model this key can actually call, not a
     // hardcoded one that answers 403 on first run.
     //
@@ -992,21 +1135,20 @@
     const cfg =
       `model = "${model}"\n` +
       `model_provider = "reseller"\n` +
-      `model_context_window = 353000\n` +
-      `model_auto_compact_token_limit = 300000\n\n` +
+      `\n` +
       `[model_providers.reseller]\n` +
       `name = "Reseller"\n` +
       `base_url = "${BASE_URL}"\n` +
-      `wire_api = "${gpt ? 'responses' : 'chat'}"\n` +
-      `experimental_bearer_token = "${k}"`;
+      `wire_api = "responses"\n` +
+      `env_key = "RESELLER_API_KEY"`;
     copyText(cfg, $('#copyKey'));
   }
 
   function copyText(text, btn) {
     const done = () => {
-      const orig = btn.textContent;
+      const orig = btn.innerHTML;
       btn.textContent = t('copy.done');
-      setTimeout(() => (btn.textContent = orig), 1200);
+      setTimeout(() => { btn.innerHTML = orig; }, 1200);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
@@ -1037,7 +1179,7 @@
     $('#newsClose').addEventListener('click', closeNews);
 
     // список имён табов-гайдов (каждому соответствует .guide-pane[data-guide])
-    const GUIDE_TABS = ['cursor', 'vscode', 'continue', 'claude', 'codex', 'aider', 'silly', 'cherry'];
+    const GUIDE_TABS = ['cursor', 'vscode', 'continue', 'grok', 'claude', 'codex', 'opencode', 'aider', 'silly', 'cherry'];
 
     document.querySelectorAll('.tab').forEach((tab) =>
       tab.addEventListener('click', () => {
@@ -1076,6 +1218,9 @@
     document.querySelectorAll('[data-os-btn]').forEach((b) =>
       b.addEventListener('click', () => setOs(b.getAttribute('data-os-btn'))),
     );
+    document.querySelectorAll('[data-unit-btn]').forEach((b) =>
+      b.addEventListener('click', () => setUnit(b.getAttribute('data-unit-btn'))),
+    );
   }
 
   // ---------------- init ----------------
@@ -1095,6 +1240,8 @@
     applyOsVisibility();
 
     await loadConfig();
+    applyI18n(lang);
+    syncUnitToggle();
 
     bindEvents();
     loadNews();
@@ -1105,6 +1252,9 @@
       $('#key').value = saved;
       login();
     }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && window._lastKey) refreshDashboard();
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);

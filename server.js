@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * example.com — API portal + transparent proxy to upstream.example
+ * API portal + transparent proxy to a New API-compatible upstream
  *
  *   GET  /                        -> our own portal (public/index.html)
  *   POST /api/portal/me           -> key info + usage analytics (from upstream.example)
@@ -25,12 +25,24 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { URL } = require('node:url');
+const { buildAnalytics, normalizeLogRows } = require('./lib/analytics');
+const { classifyModelHealth } = require('./lib/health');
+const {
+  publicBaseUrlFor,
+  publicOriginFor,
+  statusUrlFor,
+} = require('./lib/public-url');
 
 const PORT = parseInt(process.env.PORT || '3401', 10);
 const HOST = process.env.HOST || '127.0.0.1';
 const UPSTREAM_BASE = (process.env.UPSTREAM_BASE || 'https://upstream.example').replace(/\/+$/, '');
 const UPSTREAM_KEY = process.env.UPSTREAM_KEY || '';
-const PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || 'https://example.com').replace(/\/+$/, '');
+const PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+const STATUS_URL = (process.env.STATUS_URL || '').replace(/\/+$/, '');
+const API_PATH = '/' + String(process.env.API_PATH || 'v1').replace(/^\/+|\/+$/g, '');
+const TRUST_PROXY = (process.env.TRUST_PROXY || '1') !== '0';
+const PORTAL_NAME = String(process.env.PORTAL_NAME || 'API PORTAL').trim() || 'API PORTAL';
 const MAX_BODY = parseInt(process.env.MAX_BODY_BYTES || String(64 * 1024 * 1024), 10);
 const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 const NEWS_FILE = process.env.NEWS_FILE || path.join(__dirname, 'news.json');
@@ -158,6 +170,16 @@ function groupRatioOf(row, fallback = null, group = 'default') {
 const UP = new URL(UPSTREAM_BASE);
 const upstreamLib = UP.protocol === 'https:' ? https : http;
 const agent = new upstreamLib.Agent({ keepAlive: true, maxSockets: 256 });
+
+function publicUrlOptions() {
+  return {
+    publicOrigin: PUBLIC_ORIGIN,
+    publicBaseUrl: PUBLIC_BASE_URL,
+    statusUrl: STATUS_URL,
+    apiPath: API_PATH,
+    trustProxy: TRUST_PROXY,
+  };
+}
 
 // ---------------------------------------------------------------- helpers
 
@@ -379,7 +401,7 @@ function modelFromBody(bodyBuf) {
 
 // ---------------------------------------------------------------- /v1 proxy
 
-function proxy(req, res, { path: reqPath, bearer }) {
+function proxy(req, res, { path: reqPath, bearer, publicOrigin }) {
   const outHeaders = {};
   for (const [k, v] of Object.entries(req.headers)) {
     if (STRIP_REQ.has(k.toLowerCase())) continue;
@@ -417,7 +439,7 @@ function proxy(req, res, { path: reqPath, bearer }) {
       }
       if (resHeaders['location']) {
         resHeaders['location'] = String(resHeaders['location'])
-          .split(UPSTREAM_BASE).join(PUBLIC_ORIGIN);
+          .split(UPSTREAM_BASE).join(publicOrigin);
       }
       recordModelCall(statModel, up.statusCode || 502, Date.now() - startedAt);
       if (!res.headersSent) res.writeHead(up.statusCode || 502, resHeaders);
@@ -446,108 +468,6 @@ function proxy(req, res, { path: reqPath, bearer }) {
 }
 
 // ---------------------------------------------------------------- portal data
-
-function dayKey(ts) {
-  const d = new Date(ts * 1000);
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${m}-${day}`;
-}
-
-/**
- * Map upstream.example log rows into the analytics shape the frontend renders.
- *   type 2 -> billed/successful request
- *   type 5 -> error (message in `content`)
- */
-function buildAnalytics(rows) {
-  const list = Array.isArray(rows) ? rows.slice() : [];
-  list.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-
-  let ok = 0;
-  let spentCredits = 0;
-  // Tokens actually billed: prompt + completion. Cache reads are counted apart
-  // because they are charged at a tenth of the rate, so folding them into one
-  // sum would overstate what the balance was spent on.
-  let spentTokens = 0;
-  let cachedTokens = 0;
-  const byDay = new Map();
-  const byModel = new Map();
-  const recent = [];
-
-  for (const r of list) {
-    const success = Number(r.type) === 2;
-    if (success) ok += 1;
-
-    let other = {};
-    try { other = JSON.parse(r.other || '{}'); } catch (_) { /* ignore */ }
-
-    const input = Number(r.prompt_tokens || 0);
-    const output = Number(r.completion_tokens || 0);
-    const cached = Number(other.cache_tokens || 0) + Number(other.cache_creation_tokens || 0);
-    const tokens = input + output;
-    const model = r.model_name || 'unknown';
-    // Per-row charge, converted from the upstream quota unit into our credits.
-    const credits = toCredits(r.quota);
-    spentCredits += credits;
-    spentTokens += tokens;
-    cachedTokens += cached;
-
-    if (r.created_at) {
-      const k = dayKey(r.created_at);
-      const day = byDay.get(k) || { tokens: 0, credits: 0 };
-      day.tokens += tokens;
-      day.credits += credits;
-      byDay.set(k, day);
-    }
-
-    const bm = byModel.get(model) || { model, tokens: 0, requests: 0, credits: 0 };
-    bm.tokens += tokens;
-    bm.requests += 1;
-    bm.credits += credits;
-    byModel.set(model, bm);
-
-    recent.push({
-      ts: r.created_at ? new Date(r.created_at * 1000).toISOString() : '',
-      model,
-      input,
-      output,
-      cached,
-      credits,
-      success,
-      error: success ? '' : String(r.content || other.user_response || '').slice(0, 400),
-      request_path: other.request_path || '',
-      stream: !!r.is_stream,
-      latency_ms: Number(r.use_time || 0) * 1000,
-    });
-  }
-
-  // Last 14 days, including empty ones, so the chart has a stable shape.
-  const days = [];
-  const today = new Date();
-  for (let i = 13; i >= 0; i -= 1) {
-    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i));
-    const k = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-    const day = byDay.get(k);
-    days.push({
-      date: k,
-      tokens: day ? day.tokens : 0,
-      credits: day ? Math.round(day.credits * 100) / 100 : 0,
-    });
-  }
-
-  return {
-    total_requests: list.length,
-    success_rate: list.length ? ok / list.length : null,
-    spent_credits: Math.round(spentCredits * 100) / 100,
-    spent_tokens: spentTokens,
-    cached_tokens: cachedTokens,
-    tokens_by_day: days,
-    by_model: [...byModel.values()]
-      .map((x) => ({ ...x, credits: Math.round(x.credits * 100) / 100 }))
-      .sort((a, b) => b.credits - a.credits || b.tokens - a.tokens),
-    recent: recent.slice(0, 50),
-  };
-}
 
 // Per-key snapshot cache. Each portal login fans out to three upstream
 // endpoints, and upstream.example rate-limits that burst, so a plain page refresh
@@ -678,14 +598,19 @@ async function handlePortalMe(req, res) {
   // Collapse concurrent refreshes of the same key into one upstream round-trip.
   let job = meInflight.get(ck);
   if (!job) {
-    job = fetchMeSnapshot(clientKey, resolved, cached).finally(() => meInflight.delete(ck));
+    job = fetchMeSnapshot(
+      clientKey,
+      resolved,
+      cached,
+      publicBaseUrlFor(req, publicUrlOptions()),
+    ).finally(() => meInflight.delete(ck));
     meInflight.set(ck, job);
   }
   const out = await job;
   return sendJson(res, out.status, out.body);
 }
 
-async function fetchMeSnapshot(clientKey, resolved, cached) {
+async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
   lastUpstreamHit.set(meCacheKey(clientKey), Date.now());
 
   // Only ONE guaranteed per-key call now: the model list rides its own long TTL
@@ -742,9 +667,13 @@ async function fetchMeSnapshot(clientKey, resolved, cached) {
   // don't let a degraded snapshot become the cached "last good" one.
   const logRows = logRes && logRes.ok ? logRes.rows : null;
   const analyticsDegraded = logRows === null;
+  const cachedAnalytics = cached && cached.payload && cached.payload.analytics;
   const analytics = analyticsDegraded
-    ? (cached && cached.payload && cached.payload.analytics) || buildAnalytics(null)
-    : buildAnalytics(logRows);
+    ? cachedAnalytics || null
+    : buildAnalytics(logRows, toCredits);
+  const analyticsStatus = analyticsDegraded
+    ? (cachedAnalytics ? 'stale' : 'unavailable')
+    : 'live';
 
   const payload = {
     // The upstream key's own name is an internal label (e.g. "Ключ реселлера")
@@ -763,7 +692,9 @@ async function fetchMeSnapshot(clientKey, resolved, cached) {
     expires_at: u.expires_at ? new Date(Number(u.expires_at) * 1000).toISOString() : null,
     allowed_models: limits || modelIds,
     analytics,
-    _base_url: PUBLIC_ORIGIN + '/v1',
+    analytics_status: analyticsStatus,
+    synced_at: new Date().toISOString(),
+    _base_url: baseUrl,
   };
 
   // A snapshot with borrowed/empty analytics must not overwrite the last good
@@ -783,12 +714,12 @@ const PRICING_TTL_MS = 10 * 60 * 1000;
 let catalogCache = { at: 0, rows: null, group: null };
 let catalogInflight = null;
 
-async function getCatalog() {
+async function getCatalog(upstreamKey) {
   if (catalogCache.rows && Date.now() - catalogCache.at < PRICING_TTL_MS) return catalogCache;
   if (catalogInflight) return catalogInflight;
 
   catalogInflight = (async () => {
-    const r = await upstreamGet('/api/pricing', UPSTREAM_KEY, 10000);
+    const r = await upstreamGet('/api/pricing', UPSTREAM_KEY || upstreamKey, 10000);
     const rows = r.json && Array.isArray(r.json.data) ? r.json.data : null;
     if (rows) {
       catalogCache = {
@@ -817,7 +748,7 @@ async function getCatalog() {
 async function getPricingFor(upstreamKey, opts) {
   const includeAll = !!(opts && opts.all);
   const [cat, entitled] = await Promise.all([
-    getCatalog(),
+    getCatalog(upstreamKey),
     includeAll ? null : getEntitledFor(upstreamKey),
   ]);
   const rows = cat && cat.rows;
@@ -933,17 +864,18 @@ async function getUpstreamLog(upstreamKey) {
 function logStatsByModel(rows, windowSec) {
   const cutoff = Math.floor(Date.now() / 1000) - windowSec;
   const out = new Map();
-  for (const r of rows) {
+  const normalized = normalizeLogRows(rows, toCredits).records;
+  for (const r of normalized) {
     if (Number(r.created_at || 0) < cutoff) continue;
-    const model = r.model_name;
+    const model = r.model;
     if (!model) continue;
     let s = out.get(model);
     if (!s) { s = { total: 0, ok: 0, useTimes: [] }; out.set(model, s); }
     s.total += 1;
-    if (Number(r.type) === 2) {
+    if (r.success) {
       s.ok += 1;
-      const t = Number(r.use_time || 0);
-      if (t > 0) s.useTimes.push(t * 1000);
+      const t = Number(r.latency_ms || 0);
+      if (t > 0) s.useTimes.push(t);
     }
   }
   return out;
@@ -991,8 +923,12 @@ async function getServiceStatus(rangeRaw) {
       // Back off but keep the previous snapshot: an expired session must not
       // blank the page, it should keep showing the last known good telemetry.
       const prev = serviceStatusCache.get(range);
-      serviceStatusCache.set(range, { at: Date.now(), data: (prev && prev.data) || null });
-      return (prev && prev.data) || null;
+      const previous = prev && prev.data;
+      const fallback = previous
+        ? { ...previous, stale: true, last_attempt_at: new Date().toISOString() }
+        : null;
+      serviceStatusCache.set(range, { at: Date.now(), data: fallback });
+      return fallback;
     }
 
     const byModel = new Map();
@@ -1030,6 +966,8 @@ async function getServiceStatus(rangeRaw) {
       // of hardcoding "30 min", since ?range=7d switches it to 3h.
       bucket_seconds: Number(d.bucket_seconds) || null,
       generated_at: d.generated_at ? new Date(d.generated_at * 1000).toISOString() : null,
+      stale: false,
+      last_success_at: new Date().toISOString(),
     };
     serviceStatusCache.set(range, { at: Date.now(), data });
     return data;
@@ -1097,58 +1035,35 @@ async function getModelStatus(upstreamKey, opts) {
     const lg = byLog.get(it.model);
     const sv = svcModels ? svcModels.get(it.model) : null;
 
+    const evidence = classifyModelHealth({ provider: sv, log: lg, local });
+    const source = evidence.source;
     let requests = 0;
-    let successPct = null;
     let latency = null;
-    let uptimePct = null;
     let latencyLevel = null;
-    let source = null;
+    let uptimePct = null;
 
-    if (sv && Number.isFinite(sv.uptime)) {
-      uptimePct = Number(sv.uptime.toFixed(2));
-      latencyLevel = sv.latency_level;
-      // Half-hour buckets that actually carried traffic. Buckets marked
-      // 'no_traffic' report a filler uptime of 100, so they are not evidence.
-      requests = sv.samples;
-      source = 'provider';
-    }
-    if (lg && lg.total) {
-      if (source !== 'provider') requests = lg.total;
-      successPct = Number(((lg.ok / lg.total) * 100).toFixed(1));
-      if (lg.useTimes.length) {
-        const s = lg.useTimes.slice().sort((a, b) => a - b);
-        latency = Math.round(s[Math.floor(s.length / 2)]);
+    if (source === 'provider') {
+      requests = Number(sv && sv.samples) || 0;
+      uptimePct = sv && Number.isFinite(sv.uptime) ? Number(sv.uptime.toFixed(2)) : null;
+      latencyLevel = (sv && sv.latency_level) || null;
+    } else if (source === 'log') {
+      requests = Number(lg && lg.total) || 0;
+      if (lg && lg.useTimes.length) {
+        const sorted = lg.useTimes.slice().sort((a, b) => a - b);
+        latency = Math.round(sorted[Math.floor(sorted.length / 2)]);
       }
-      source = source || 'log';
-    } else if (local) {
-      if (!source) requests = local.requests;
-      successPct = local.success_pct;
-      latency = local.latency_ms;
-      source = source || 'local';
+    } else if (source === 'local') {
+      requests = Number(local && local.requests) || 0;
+      latency = local && local.latency_ms;
     }
 
-    // Provider uptime decides the state when present. Without any measured
-    // bucket the provider still reports 100, which is a placeholder rather than
-    // a verified result, so that case falls through to 'unknown'.
-    let state = 'available';
-    if (sv && !sv.active) {
-      state = 'down';
-    } else if (uptimePct != null && requests > 0) {
-      if (uptimePct < 40) state = 'down';
-      else if (uptimePct < 90) state = 'degraded';
-    } else if (successPct != null && requests >= 3) {
-      // Fallback path: no provider telemetry for this model.
-      if (successPct < 40) state = 'down';
-      else if (successPct < 90) state = 'degraded';
-    } else if (svcModels) {
-      // Provider telemetry is available but this model has no measured bucket
-      // and no traffic of ours: say so instead of implying a verified green.
-      state = 'unknown';
-    }
+    const successPct = evidence.success_pct == null
+      ? null
+      : Number(evidence.success_pct.toFixed(1));
 
     return {
       model: it.model,
-      state,
+      state: evidence.state,
       requests,
       success_pct: requests ? successPct : null,
       latency_ms: latency,
@@ -1188,7 +1103,8 @@ async function getModelStatus(upstreamKey, opts) {
     range: (svc && svc.range) || null,
     bucket_seconds: (svc && svc.bucket_seconds) || null,
     source: svcModels ? 'provider' : 'local',
-    updated_at: new Date(now).toISOString(),
+    stale: Boolean(svc && svc.stale),
+    updated_at: (svc && (svc.generated_at || svc.last_success_at)) || new Date(now).toISOString(),
   };
   if (modelStatusCache.size >= ME_CACHE_MAX) {
     const oldest = modelStatusCache.keys().next().value;
@@ -1303,12 +1219,13 @@ function isStatusHost(req) {
 const STATUS_HOST_PATHS = new Set([
   '/',
   '/style.css',
+  '/api/config',
   '/api/model-status',
   '/healthz',
 ]);
 
-async function serveIndex(res, req) {
-  const doc = req && isStatusHost(req) ? 'status.html' : 'index.html';
+async function serveIndex(res, req, explicitDoc) {
+  const doc = explicitDoc || (req && isStatusHost(req) ? 'status.html' : 'index.html');
   const idx = path.join(PUBLIC_DIR, doc);
   try {
     const buf = Buffer.from(stampAssets(await fsp.readFile(idx, 'utf8')), 'utf8');
@@ -1356,7 +1273,11 @@ const server = http.createServer(async (req, res) => {
       if (!clientKey) return jsonError(res, 401, 'missing_api_key', 'Missing Authorization header');
       const resolved = resolveUpstreamKey(clientKey);
       if (!resolved) return jsonError(res, 401, 'invalid_api_key', 'Invalid or inactive API key');
-      return proxy(req, res, { path: req.url, bearer: resolved.key });
+      return proxy(req, res, {
+        path: req.url,
+        bearer: resolved.key,
+        publicOrigin: publicOriginFor(req, publicUrlOptions()),
+      });
     }
 
     // ---- portal API ----
@@ -1377,7 +1298,7 @@ const server = http.createServer(async (req, res) => {
       // The status subdomain reports the whole service, so it is not narrowed by
       // any key's entitlement -- our own reseller key sees 7 of 19 models and the
       // page would look like the rest do not exist.
-      const all = isStatusHost(req);
+      const all = isStatusHost(req) || !ck;
       // Window is chosen by the caller. Only the provider's two supported values
       // pass; anything else falls back to 24h rather than relaying a 400.
       const range = normalizeRange(parsed.searchParams.get('range'));
@@ -1409,14 +1330,22 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/config') {
       return sendJson(res, 200, {
-        base_url: PUBLIC_ORIGIN + '/v1',
-        public_url: PUBLIC_ORIGIN,
+        base_url: publicBaseUrlFor(req, publicUrlOptions()),
+        public_url: publicOriginFor(req, publicUrlOptions()),
+        status_url: statusUrlFor(req, publicUrlOptions()),
+        portal_name: PORTAL_NAME,
         languages: ['ru', 'en'],
       });
     }
 
     if (pathname.startsWith('/api/')) {
       return jsonError(res, 404, 'not_found', 'Unknown endpoint');
+    }
+
+    // A same-origin status page always works, even when no status.* DNS record
+    // exists. STATUS_URL may still point the dashboard button elsewhere.
+    if (pathname === '/status' || pathname === '/status/') {
+      return serveIndex(res, req, 'status.html');
     }
 
     // ---- static site ----
@@ -1447,7 +1376,7 @@ server.timeout = 0;
 server.listen(PORT, HOST, () => {
   console.log(`[portal] listening on ${HOST}:${PORT}`);
   console.log(`[portal] upstream = ${UPSTREAM_BASE}`);
-  console.log(`[portal] public   = ${PUBLIC_ORIGIN}`);
+  console.log(`[portal] public   = ${PUBLIC_BASE_URL || PUBLIC_ORIGIN || 'auto from request'}`);
   console.log(`[portal] static   = ${PUBLIC_DIR}`);
   console.log(`[portal] client keys = ${CLIENT_KEYS.size ? CLIENT_KEYS.size + ' allowlisted' : 'none'}`);
   console.log(`[portal] passthrough = ${PASSTHROUGH ? 'on' : 'off'}`);

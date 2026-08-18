@@ -7,17 +7,9 @@
 <meta name="description" content="Live availability of api-portal API models.">
 <meta name="theme-color" content="#020203">
 <meta name="robots" content="index, follow">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body class="status-page">
-
-<div class="bg-blobs" aria-hidden="true">
-  <div class="blob b1"></div>
-  <div class="blob b2"></div>
-  <div class="blob b3"></div>
-</div>
 
 <div class="lang-switch-float">
   <div class="lang-toggle" role="group" aria-label="Language">
@@ -29,6 +21,7 @@
 <main class="wrap sp-wrap">
 
   <header class="sp-head">
+    <div class="hero-mark" data-brand>API PORTAL</div>
     <span class="pill">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
       <span data-i18n="sp.badge">Статус сервиса</span>
@@ -114,6 +107,8 @@
       'lat.high': 'высокая задержка',
       'lat.very_high': 'очень высокая задержка',
       'sp.offline': 'Не удалось получить данные',
+      'sp.updated': 'обновлено {time}',
+      'sp.stale': 'последний снимок {time}',
       'status.unknown': 'Нет данных',
       'status.available': 'Работает',
       'status.degraded': 'Сбои',
@@ -145,6 +140,8 @@
       'lat.high': 'high latency',
       'lat.very_high': 'very high latency',
       'sp.offline': 'Could not load data',
+      'sp.updated': 'updated {time}',
+      'sp.stale': 'last snapshot {time}',
       'status.unknown': 'No data',
       'status.available': 'Operational',
       'status.degraded': 'Degraded',
@@ -325,7 +322,12 @@
         if (m.state === 'down' || m.state === 'degraded') bad += 1;
       });
     }
-    var count = known ? (bad > 0 ? bad + '/' + known : '') : '—';
+    var updated = statusData && statusData.updated_at ? new Date(statusData.updated_at) : null;
+    var time = updated && !isNaN(updated.getTime())
+      ? updated.toLocaleTimeString(getLang() === 'ru' ? 'ru-RU' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+      : '—';
+    var stamp = t(statusData && statusData.stale ? 'sp.stale' : 'sp.updated').replace('{time}', time);
+    var count = known ? (bad > 0 ? bad + '/' + known + ' · ' + stamp : stamp) : '—';
     var sEl = $('#spSummary');
     if (sEl) sEl.textContent = count;
   }
@@ -381,6 +383,14 @@
   });
 
   applyI18n();
+  fetch('/api/config', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (config) {
+      if (!config || !config.portal_name) return;
+      document.querySelectorAll('[data-brand]').forEach(function (el) { el.textContent = config.portal_name; });
+      document.title = t('sp.badge') + ' · ' + config.portal_name;
+    })
+    .catch(function () {});
   load();
   setInterval(load, REFRESH_MS);
   // A tab left open for hours would otherwise show stale state on return.

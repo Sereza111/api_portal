@@ -30,10 +30,10 @@ prices and live health, and copy-paste setup snippets for a dozen clients
 SillyTavern, Cherry Studio, plain curl, Python, Node). Snippets adapt to the
 visitor's OS and substitute a model the key is actually entitled to. RU/EN.
 
-**Public status page** (`status.` subdomain) — per-model availability with a
-24h/7d history strip, no login and no prices. Served by the same process; the
-subdomain is restricted to exactly four paths (`/`, `/style.css`,
-`/api/model-status`, `/healthz`), so nothing else is reachable there.
+**Public status page** (`/status`, optionally also a `status.` subdomain) —
+per-model availability with a 24h/7d history strip, no login and no prices.
+The dashboard button defaults to the same-origin route, so separate DNS is not
+required. A status subdomain remains supported with a restricted route set.
 
 ---
 
@@ -69,7 +69,10 @@ Every variable is documented in `.env.example`. The ones that matter:
 | `UPSTREAM_KEY` | Your provider key, swapped in for allowlisted client keys |
 | `CLIENT_KEYS` | Comma-separated keys you hand to customers |
 | `PASSTHROUGH` | `1` forwards unknown keys upstream unchanged |
-| `PUBLIC_ORIGIN` | Public URL, used to build the Base URL shown to customers |
+| `PUBLIC_ORIGIN` | Optional public origin; otherwise derived from proxy headers |
+| `PUBLIC_BASE_URL` | Optional full Base URL override, including the API path |
+| `STATUS_URL` | Optional external status page; defaults to same-origin `/status` |
+| `PORTAL_NAME` | Brand text shown in the portal |
 | `CREDITS_PER_USD` | Credit scale. `10000` means 1 credit = $0.0001 upstream |
 | `UPSTREAM_SESSION`, `UPSTREAM_SESSION_USER` | Optional, powers the status page |
 
@@ -151,7 +154,9 @@ Required variables:
 | `UPSTREAM_KEY` | Your private key at that provider; required when using allowlisted keys |
 | `CLIENT_KEYS` | Comma-separated customer keys, for example `customer-1,customer-2` |
 | `PASSTHROUGH` | `0` to accept only `CLIENT_KEYS`; `1` also forwards unknown client keys upstream |
-| `PUBLIC_ORIGIN` | Public HTTPS address of this portal, for example `https://api.example.com` |
+| `PUBLIC_ORIGIN` | Optional public HTTPS origin; leave empty to use forwarded host/protocol |
+| `PUBLIC_BASE_URL` | Optional full API URL override, for example `https://api.example.com/v1` |
+| `STATUS_URL` | Optional external status URL; defaults to `<portal>/status` |
 
 Recommended values: `MAX_BODY_BYTES=104857600` and `CREDITS_PER_USD=10000`.
 `UPSTREAM_SESSION` and `UPSTREAM_SESSION_USER` are optional and only enable
