@@ -27,6 +27,7 @@ const crypto = require('node:crypto');
 const { URL } = require('node:url');
 const { buildAnalytics, normalizeLogRows } = require('./lib/analytics');
 const { classifyModelHealth } = require('./lib/health');
+const { buildServiceTelemetry } = require('./lib/service-telemetry');
 const {
   publicBaseUrlFor,
   publicOriginFor,
@@ -900,6 +901,34 @@ function normalizeRange(v) {
 const serviceStatusCache = new Map();
 const serviceStatusInflight = new Map();
 
+async function getAdminLogTelemetry(range) {
+  if (!UPSTREAM_DASHBOARD_TOKEN) return null;
+  const now = new Date();
+  const end = Math.floor(now.getTime() / 1000);
+  const start = end - (range === '7d' ? 7 * 24 * 3600 : 24 * 3600);
+  const pageSize = 100;
+  const maxPages = 20;
+  const rows = [];
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const qs = new URLSearchParams({
+      p: String(page),
+      page_size: String(pageSize),
+      start_timestamp: String(start),
+      end_timestamp: String(end),
+    });
+    const r = await upstreamDashGet('/api/log/?' + qs.toString(), 10000);
+    const data = r.json && r.json.success && r.json.data;
+    const items = data && Array.isArray(data.items) ? data.items : null;
+    if (!items) return null;
+    rows.push(...items);
+    const total = Number(data.total) || 0;
+    if (items.length < pageSize || rows.length >= total) break;
+  }
+
+  return buildServiceTelemetry(rows, range, now);
+}
+
 async function getServiceStatus(rangeRaw) {
   const range = normalizeRange(rangeRaw);
   const slot = serviceStatusCache.get(range);
@@ -917,6 +946,11 @@ async function getServiceStatus(rangeRaw) {
     const d = r.json && r.json.success && r.json.data ? r.json.data : null;
     const rows = d && Array.isArray(d.models) ? d.models : null;
     if (!rows) {
+      const fromLogs = await getAdminLogTelemetry(range);
+      if (fromLogs) {
+        serviceStatusCache.set(range, { at: Date.now(), data: fromLogs });
+        return fromLogs;
+      }
       // Back off but keep the previous snapshot: an expired session must not
       // blank the page, it should keep showing the last known good telemetry.
       const prev = serviceStatusCache.get(range);

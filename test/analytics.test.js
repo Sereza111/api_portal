@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { buildAnalytics, normalizeLogRows } = require('../lib/analytics');
 const { classifyModelHealth } = require('../lib/health');
 const { publicBaseUrlFor, statusUrlFor } = require('../lib/public-url');
+const { buildServiceTelemetry } = require('../lib/service-telemetry');
 
 const toCredits = (quota) => Number(quota || 0) / 50;
 
@@ -52,6 +53,22 @@ test('model health is unknown without enough real observations', () => {
 test('provider no-traffic filler never becomes operational', () => {
   const result = classifyModelHealth({ provider: { uptime: 100, samples: 0, active: true } });
   assert.equal(result.state, 'unknown');
+});
+
+test('service telemetry aggregates the admin log by model and time bucket', () => {
+  const now = new Date('2026-08-18T12:00:00Z');
+  const ts = Math.floor(now.getTime() / 1000) - 60;
+  const result = buildServiceTelemetry([
+    { type: 2, request_id: 'ok-1', model_name: 'gpt-test', use_time: 2, created_at: ts },
+    { type: 5, request_id: 'bad-1', model_name: 'gpt-test', created_at: ts + 1 },
+    { type: 1, model_name: 'gpt-test', created_at: ts + 2 },
+  ], '24h', now);
+  const model = result.models.get('gpt-test');
+  assert.equal(result.sample_count, 2);
+  assert.equal(result.overall_uptime, 50);
+  assert.equal(model.samples, 2);
+  assert.equal(model.uptime, 50);
+  assert.equal(model.buckets.filter((bucket) => bucket.s === 'data').length, 1);
 });
 
 test('public URLs derive from reverse proxy headers unless overridden', () => {

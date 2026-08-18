@@ -93,10 +93,12 @@ reports the provider's own telemetry for every model.
 
 For current New API releases, create a management **Access Token** under
 Profile -> Security and put it in `UPSTREAM_DASHBOARD_TOKEN`. It is not an
-`sk-*` model API key. `UPSTREAM_SESSION` plus `UPSTREAM_SESSION_USER` remain
-available only for older deployments that still use the legacy browser-session
-scheme. If dashboard authentication expires or is revoked, the page degrades to
-the local request log rather than breaking.
+`sk-*` model API key. The portal reads the paginated administrative request log
+and aggregates traffic across all customer tokens without exposing raw rows.
+`UPSTREAM_SESSION` plus `UPSTREAM_SESSION_USER` remain available only for older
+deployments that provide the legacy service-status endpoint. If dashboard
+authentication expires or is revoked, the page degrades to the local request
+log rather than breaking.
 
 A model with no traffic in the window is reported as **no data**, never as an
 outage, and it does not count toward the failure badge. Only observed failures
