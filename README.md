@@ -74,7 +74,8 @@ Every variable is documented in `.env.example`. The ones that matter:
 | `STATUS_URL` | Optional external status page; defaults to same-origin `/status` |
 | `PORTAL_NAME` | Brand text shown in the portal |
 | `CREDITS_PER_USD` | Credit scale. `10000` means 1 credit = $0.0001 upstream |
-| `UPSTREAM_SESSION`, `UPSTREAM_SESSION_USER` | Optional, powers the status page |
+| `UPSTREAM_DASHBOARD_TOKEN` | Optional New API management token; powers the full status page |
+| `UPSTREAM_SESSION`, `UPSTREAM_SESSION_USER` | Legacy dashboard authentication fallback |
 
 ### About the credit unit
 
@@ -85,16 +86,17 @@ Change it in one place and the whole portal follows.
 
 ### About the status page
 
-Without `UPSTREAM_SESSION` the status page falls back to your own request log,
+Without dashboard authentication the status page falls back to your own request log,
 which only sees models your traffic actually touched — typically a third of the
-catalog, with the rest showing "no data". With a provider dashboard session it
+catalog, with the rest showing "no data". With provider dashboard access it
 reports the provider's own telemetry for every model.
 
-Those two variables are a browser session, not an API key: the provider's
-dashboard endpoint rejects a Bearer token. Copy the `session` cookie and the
-numeric account id from DevTools while logged into the provider dashboard. The
-session expires eventually; when it does, the page degrades to the local log
-rather than breaking.
+For current New API releases, create a management **Access Token** under
+Profile -> Security and put it in `UPSTREAM_DASHBOARD_TOKEN`. It is not an
+`sk-*` model API key. `UPSTREAM_SESSION` plus `UPSTREAM_SESSION_USER` remain
+available only for older deployments that still use the legacy browser-session
+scheme. If dashboard authentication expires or is revoked, the page degrades to
+the local request log rather than breaking.
 
 A model with no traffic in the window is reported as **no data**, never as an
 outage, and it does not count toward the failure badge. Only observed failures
@@ -159,9 +161,10 @@ Required variables:
 | `STATUS_URL` | Optional external status URL; defaults to `<portal>/status` |
 
 Recommended values: `MAX_BODY_BYTES=104857600` and `CREDITS_PER_USD=10000`.
-`UPSTREAM_SESSION` and `UPSTREAM_SESSION_USER` are optional and only enable
-full provider telemetry on the status page. `HOST` must remain `0.0.0.0` in a
-container; it is set by the Compose file.
+`UPSTREAM_DASHBOARD_TOKEN` is optional and enables full provider telemetry on
+the status page. The two `UPSTREAM_SESSION*` settings are only a legacy
+fallback. `HOST` must remain `0.0.0.0` in a container; it is set by the Compose
+file.
 
 ---
 

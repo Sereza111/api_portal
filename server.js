@@ -58,16 +58,11 @@ const CLIENT_KEYS = new Set(
 // unchanged (clients bring their own upstream.example key).
 const PASSTHROUGH = (process.env.PASSTHROUGH || '1') !== '0';
 
-// ---- upstream dashboard session (status telemetry only) ----
-// /api/service-status is a DASHBOARD endpoint: a Bearer API key is rejected, it
-// only accepts a browser session cookie AND a New-Api-User header carrying the
-// numeric account id. Both are required -- cookie alone answers
-// "Unauthorized, New-Api-User header not provided" and a wrong id answers
-// "New-Api-User does not match logged in user".
-//
-// This is the provider's own aggregated telemetry (24h uptime and latency per
-// model, 30-minute buckets), which is far better than what we can infer from our
-// own traffic. Sessions expire, so every consumer must survive it going 401.
+// ---- upstream dashboard authentication (status telemetry only) ----
+// Current New API releases accept a long-lived management access token as a
+// Bearer credential. Older deployments used a browser `session` cookie plus a
+// New-Api-User header, so that pair remains as a compatibility fallback.
+const UPSTREAM_DASHBOARD_TOKEN = process.env.UPSTREAM_DASHBOARD_TOKEN || '';
 const UPSTREAM_SESSION = process.env.UPSTREAM_SESSION || '';
 const UPSTREAM_SESSION_USER = process.env.UPSTREAM_SESSION_USER || '';
 
@@ -299,17 +294,20 @@ function upstreamGet(pathname, bearer, timeoutMs = 15000) {
 }
 
 /**
- * JSON GET against the upstream DASHBOARD API using the session cookie.
- *
- * Separate from upstreamGet() because the auth shape is different: no Bearer
- * (it is rejected outright), and both the session cookie and New-Api-User are
- * mandatory. Referer is sent because the dashboard rejects some requests
- * without it.
+ * JSON GET against the upstream dashboard API. Management credentials are
+ * deliberately separate from the customer/upstream relay key.
  */
 function upstreamDashGet(pathname, timeoutMs = 15000) {
-  if (!UPSTREAM_SESSION || !UPSTREAM_SESSION_USER) {
+  const legacySession = UPSTREAM_SESSION && UPSTREAM_SESSION_USER;
+  if (!UPSTREAM_DASHBOARD_TOKEN && !legacySession) {
     return Promise.resolve({ status: 0, json: null, raw: '' });
   }
+  const authHeaders = UPSTREAM_DASHBOARD_TOKEN
+    ? { authorization: 'Bearer ' + UPSTREAM_DASHBOARD_TOKEN }
+    : {
+        cookie: 'session=' + UPSTREAM_SESSION,
+        'new-api-user': String(UPSTREAM_SESSION_USER),
+      };
   return new Promise((resolve) => {
     const req = upstreamLib.request({
       agent,
@@ -320,8 +318,7 @@ function upstreamDashGet(pathname, timeoutMs = 15000) {
       servername: UP.hostname,
       headers: {
         host: UP.host,
-        cookie: 'session=' + UPSTREAM_SESSION,
-        'new-api-user': String(UPSTREAM_SESSION_USER),
+        ...authHeaders,
         accept: 'application/json',
         'accept-encoding': 'identity',
         referer: UPSTREAM_BASE + '/service-status',
