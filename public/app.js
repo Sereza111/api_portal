@@ -109,8 +109,8 @@
       'err.empty': 'Введите API-ключ.',
       'err.invalid': 'Неверный или неактивный API-ключ.',
       'err.network': 'Не удалось связаться с сервером. Попробуйте позже.',
-      'err.rateLimited': 'Слишком много запросов. Подождите минуту и попробуйте снова.',
-      'err.rateLimitedWait': 'Слишком много запросов. Повтор через {s} с…',
+      'err.rateLimited': 'Лимит запросов. Повторите вход вручную.',
+      'err.rateLimitedWait': 'Слишком много запросов. Можно повторить через {s} с…',
       'err.upstream': 'Провайдер временно недоступен. Ключ в порядке, попробуйте позже.',
       'copy.done': 'Скопировано!',
       'expires.prefix': 'до ',
@@ -193,8 +193,8 @@
       'err.empty': 'Enter your API key.',
       'err.invalid': 'Invalid or inactive API key.',
       'err.network': 'Could not reach the server. Try again later.',
-      'err.rateLimited': 'Too many requests. Wait a minute and try again.',
-      'err.rateLimitedWait': 'Too many requests. Retrying in {s}s…',
+      'err.rateLimited': 'Request limit reached. Retry the login manually.',
+      'err.rateLimitedWait': 'Too many requests. You can retry in {s}s…',
       'err.upstream': 'Provider temporarily unavailable. Your key is fine, try again later.',
       'copy.done': 'Copied!',
       'expires.prefix': 'until ',
@@ -550,7 +550,7 @@
         let wait = 15;
         try {
           const b = await r.json();
-          if (b && Number(b.retry_after) > 0) wait = Math.min(120, Number(b.retry_after));
+          if (b && Number(b.retry_after) > 0) wait = Math.min(3600, Number(b.retry_after));
         } catch (_) { /* keep default */ }
         startRetryCountdown(btn, orig, wait);
         return;
@@ -576,9 +576,9 @@
     btn.innerHTML = orig;
   }
 
-  // Rate-limit countdown: keeps the button disabled for the provider's recovery
-  // window, then retries once on its own. Without this the user hammers the
-  // button and keeps the limit alive.
+  // Keep the button disabled for the provider's real recovery window. The user
+  // decides when to retry: an automatic request at the boundary can extend a
+  // fixed-window limit before it has actually expired.
   let retryTimer = null;
   let dashboardTimer = null;
   function startRetryCountdown(btn, orig, seconds) {
@@ -586,16 +586,15 @@
     let left = Math.max(1, Math.round(seconds));
     btn.disabled = true;
     const tick = () => {
-      showErr(t('err.rateLimitedWait').replace('{s}', String(left)));
-      btn.textContent = left + 's';
       if (left <= 0) {
         clearInterval(retryTimer);
         retryTimer = null;
         resetBtn(btn, orig);
-        $('#err').style.display = 'none';
-        login();
+        showErr(t('err.rateLimited'));
         return;
       }
+      showErr(t('err.rateLimitedWait').replace('{s}', String(left)));
+      btn.textContent = left + 's';
       left -= 1;
     };
     tick();

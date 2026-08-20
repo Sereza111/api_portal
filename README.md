@@ -230,6 +230,13 @@ is cached per key with a stale fallback, so a 429 serves the last good snapshot
 instead of showing the customer an error or a zeroed chart. A degraded snapshot
 never overwrites a good one.
 
+New API's critical limiter is IP-based. Because every portal request originates
+from the portal host, keep `CRITICAL_RATE_LIMIT` high enough for the expected
+number of simultaneous customers or place the portal on a trusted internal
+route. The portal minimizes this shared budget: balance checks run before
+optional history, customer snapshots are cached for five minutes, and public
+status samples at most 100 recent administrative log rows per five minutes.
+
 **Failed requests are free.** Rows the provider bills at zero (5xx, overload)
 appear in the history as failures with no charge, so a customer can see the
 retries without being charged for them.

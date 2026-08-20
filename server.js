@@ -284,12 +284,12 @@ function upstreamGet(pathname, bearer, timeoutMs = 15000) {
         const raw = Buffer.concat(chunks).toString('utf8');
         let json = null;
         try { json = JSON.parse(raw); } catch (_) { /* non-JSON */ }
-        resolve({ status: up.statusCode || 0, json, raw });
+        resolve({ status: up.statusCode || 0, json, raw, headers: up.headers || {} });
       });
-      up.on('error', () => resolve({ status: 0, json: null, raw: '' }));
+      up.on('error', () => resolve({ status: 0, json: null, raw: '', headers: {} }));
     });
     req.setTimeout(timeoutMs, () => req.destroy(new Error('timeout')));
-    req.on('error', () => resolve({ status: 0, json: null, raw: '' }));
+    req.on('error', () => resolve({ status: 0, json: null, raw: '', headers: {} }));
     req.end();
   });
 }
@@ -471,8 +471,8 @@ function proxy(req, res, { path: reqPath, bearer, publicOrigin }) {
 // endpoints, and upstream.example rate-limits that burst, so a plain page refresh
 // would otherwise hand the user a 429. Fresh hits are served from cache and a
 // rate-limited refresh falls back to the last good snapshot.
-const ME_TTL_MS = 60 * 1000;
-const ME_STALE_MS = 10 * 60 * 1000;
+const ME_TTL_MS = 5 * 60 * 1000;
+const ME_STALE_MS = 60 * 60 * 1000;
 const ME_CACHE_MAX = 200;
 const meCache = new Map();
 
@@ -488,8 +488,8 @@ const meCache = new Map();
 //   3. ME_MIN_GAP_MS  - a hard floor between upstream refreshes per key; inside
 //                       the gap we serve the cached snapshot rather than risk
 //                       spending the budget.
-const ME_MIN_GAP_MS = 10 * 1000;
-const UPSTREAM_RETRY_AFTER_S = 15;
+const ME_MIN_GAP_MS = 30 * 1000;
+const UPSTREAM_RETRY_AFTER_S = 60;
 const meInflight = new Map();
 const lastUpstreamHit = new Map();
 
@@ -611,16 +611,10 @@ async function handlePortalMe(req, res) {
 async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
   lastUpstreamHit.set(meCacheKey(clientKey), Date.now());
 
-  // Only ONE guaranteed per-key call now: the model list rides its own long TTL
-  // and the request log goes through the shared per-key cache that the status
-  // list also reads. Fetching the log directly here meant a login spent two
-  // calls on the same rows, which is exactly the budget that trips the 429.
-  const [usage, logRes, modelIdsCached] = await Promise.all([
-    upstreamGet('/api/usage/token/', resolved.key),
-    getUpstreamLogResult(resolved.key),
-    getEntitledFor(resolved.key),
-  ]);
-  const models = { json: { data: (modelIdsCached || []).map((id) => ({ id })) } };
+  // Balance/auth is the only request required to enter the dashboard. Run it
+  // first so an optional log request cannot consume the last shared IP-rate
+  // slot and make a valid key look unavailable.
+  const usage = await upstreamGet('/api/usage/token/', resolved.key);
 
   // Only a genuine auth rejection means "bad key". Rate limits and upstream
   // faults must NOT be reported as invalid_key, otherwise a 429 looks to the
@@ -638,12 +632,21 @@ async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
     // No snapshot to fall back on: tell the client how long to wait instead of
     // leaving the retry timing to guesswork.
     if (usage.status === 429) {
-      return { status: 429, body: { error: 'rate_limited', retry_after: UPSTREAM_RETRY_AFTER_S } };
+      const retryAfter = Math.max(
+        1,
+        Number(usage.headers && usage.headers['retry-after']) || UPSTREAM_RETRY_AFTER_S,
+      );
+      return { status: 429, body: { error: 'rate_limited', retry_after: retryAfter } };
     }
     if (!usage.status) return { status: 502, body: { error: 'upstream_unreachable' } };
     return { status: 502, body: { error: 'upstream_error', status: usage.status } };
   }
 
+  const [logRes, modelIdsCached] = await Promise.all([
+    getUpstreamLogResult(resolved.key),
+    getEntitledFor(resolved.key),
+  ]);
+  const models = { json: { data: (modelIdsCached || []).map((id) => ({ id })) } };
   const u = usage.json.data;
 
   const granted = Number(u.total_granted || 0);
@@ -811,7 +814,7 @@ async function getPricingFor(upstreamKey, opts) {
 // Keyed per upstream key: the log endpoint only ever returns the rows of the
 // token that asked, so serving our own rows to a passthrough client would
 // describe traffic that is not theirs.
-const LOG_TTL_MS = 60 * 1000;
+const LOG_TTL_MS = 5 * 60 * 1000;
 const logCaches = new Map();
 const logInflight = new Map();
 
@@ -888,7 +891,7 @@ function logStatsByModel(rows, windowSec) {
 //
 // One global cache, not per key: this is a property of the SERVICE, and the
 // session belongs to our account regardless of which client asks.
-const SERVICE_STATUS_TTL_MS = 60 * 1000;
+const SERVICE_STATUS_TTL_MS = 5 * 60 * 1000;
 // The provider accepts only these two windows: anything else answers 400
 // "range must be 24h or 7d", so an unknown value is coerced instead of relayed.
 const SERVICE_STATUS_RANGES = ['24h', '7d'];
@@ -907,26 +910,16 @@ async function getAdminLogTelemetry(range) {
   const end = Math.floor(now.getTime() / 1000);
   const start = end - (range === '7d' ? 7 * 24 * 3600 : 24 * 3600);
   const pageSize = 100;
-  const maxPages = 20;
-  const rows = [];
-
-  for (let page = 1; page <= maxPages; page += 1) {
-    const qs = new URLSearchParams({
-      p: String(page),
-      page_size: String(pageSize),
-      start_timestamp: String(start),
-      end_timestamp: String(end),
-    });
-    const r = await upstreamDashGet('/api/log/?' + qs.toString(), 10000);
-    const data = r.json && r.json.success && r.json.data;
-    const items = data && Array.isArray(data.items) ? data.items : null;
-    if (!items) return null;
-    rows.push(...items);
-    const total = Number(data.total) || 0;
-    if (items.length < pageSize || rows.length >= total) break;
-  }
-
-  return buildServiceTelemetry(rows, range, now);
+  const qs = new URLSearchParams({
+    p: '1',
+    page_size: String(pageSize),
+    start_timestamp: String(start),
+    end_timestamp: String(end),
+  });
+  const r = await upstreamDashGet('/api/log/?' + qs.toString(), 10000);
+  const data = r.json && r.json.success && r.json.data;
+  const items = data && Array.isArray(data.items) ? data.items : null;
+  return items ? buildServiceTelemetry(items, range, now) : null;
 }
 
 async function getServiceStatus(rangeRaw) {
@@ -942,7 +935,9 @@ async function getServiceStatus(rangeRaw) {
     // 24h is the provider's default, so the parameter is only sent when it
     // actually changes the window.
     const qs = range === '24h' ? '' : '?range=' + encodeURIComponent(range);
-    const r = await upstreamDashGet('/api/service-status' + qs, 10000);
+    const r = UPSTREAM_DASHBOARD_TOKEN
+      ? { status: 0, json: null }
+      : await upstreamDashGet('/api/service-status' + qs, 10000);
     const d = r.json && r.json.success && r.json.data ? r.json.data : null;
     const rows = d && Array.isArray(d.models) ? d.models : null;
     if (!rows) {
