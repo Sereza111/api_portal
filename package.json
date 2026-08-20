@@ -1,14 +1,26 @@
 {
   "name": "api-portal",
   "version": "1.0.0",
-  "description": "Transparent API proxy: example.com -> upstream.example",
+  "description": "Self-hosted customer portal and transparent proxy for OpenAI-compatible APIs",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "demo": "node dev/demo.js",
     "test": "node --test",
     "check": "node --check server.js && node --check public/app.js"
   },
-  "keywords": ["proxy", "openai"],
-  "author": "",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sereza111/api_portal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sereza111/api_portal/issues"
+  },
+  "homepage": "https://github.com/Sereza111/api_portal#readme",
+  "keywords": ["proxy", "openai", "anthropic", "llm", "api-gateway", "self-hosted"],
+  "author": "Sereza111",
   "license": "MIT"
 }

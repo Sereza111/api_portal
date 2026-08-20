@@ -1,5 +1,10 @@
 # API Portal
 
+[![CI](https://github.com/Sereza111/api_portal/actions/workflows/ci.yml/badge.svg)](https://github.com/Sereza111/api_portal/actions/workflows/ci.yml)
+[![Node.js 18+](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-f2f2ee.svg)](LICENSE)
+[![Zero dependencies](https://img.shields.io/badge/runtime_dependencies-0-43c58a.svg)](package.json)
+
 Self-hosted customer portal and transparent reverse proxy for an
 OpenAI/Anthropic-compatible API provider.
 
@@ -9,6 +14,46 @@ which models they may call and whether those models are currently healthy.
 Your provider key never leaves the server.
 
 Zero npm dependencies. Node 18+, stdlib only.
+
+![API Portal dashboard](docs/screenshots/dashboard.png)
+
+## Why API Portal
+
+API Portal is the customer-facing layer that a raw LLM gateway usually lacks.
+It keeps the provider credential server-side while giving each customer a
+clear view of balance, request-level cost, model access and service health.
+
+| For operators | For customers |
+|---|---|
+| One upstream credential stays on the server | One compatible Base URL and key |
+| Allowlisted and passthrough access modes | Usage, spend and request history |
+| Docker, systemd and nginx examples | Live model availability and pricing |
+| Provider telemetry with graceful fallback | Setup snippets for popular clients |
+
+### Architecture
+
+```mermaid
+flowchart LR
+    C["OpenAI / Anthropic client"] -->|"customer key"| P["API Portal"]
+    P -->|"provider key"| U["LLM provider"]
+    P --> D["Customer dashboard"]
+    P --> S["Public status page"]
+    U -->|"models, usage, telemetry"| P
+```
+
+## Try the demo
+
+The repository includes a local mock provider, so the complete UI can be
+reviewed without an API account or paid requests:
+
+```bash
+npm run demo
+```
+
+Open `http://127.0.0.1:3401`, sign in with `demo-key`, and visit
+`http://127.0.0.1:3401/status` for the public status page.
+
+![API Portal status page](docs/screenshots/status.png)
 
 ---
 
