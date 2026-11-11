@@ -5,13 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title data-i18n="page.title">api-portal API</title>
 <meta name="description" content="api-portal API portal — manage your key, view usage and connect models.">
-<meta name="theme-color" content="#020203">
+<meta name="theme-color" content="#10141a">
+<script>try{if(localStorage.getItem('cx_theme')==='light')document.documentElement.dataset.theme='light'}catch(_){}</script>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
 <!-- language switch (виден на всех экранах) -->
 <div class="lang-switch-float">
+  <div class="theme-toggle" role="group" aria-label="Theme">
+    <button class="theme-btn" type="button" data-theme-btn="dark" data-theme-label="dark" aria-pressed="true" title="Тёмная тема" aria-label="Тёмная тема">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+    </button>
+    <button class="theme-btn" type="button" data-theme-btn="light" data-theme-label="light" aria-pressed="false" title="Светлая тема" aria-label="Светлая тема">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+  </div>
   <div class="lang-toggle" role="group" aria-label="Language">
     <button class="lang-btn" type="button" data-lang-btn="ru" aria-pressed="false">RU</button>
     <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
@@ -43,7 +52,7 @@
       </div>
       <div class="card">
         <div class="avatar" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
         </div>
         <h2 data-i18n="login.title">Sign in</h2>
         <p class="sub" data-i18n="login.subtitle">Login with your API key</p>
@@ -67,7 +76,7 @@
     <div class="topbar">
       <div class="brand">
         <span class="dot">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8l-4 4 4 4M17 8l4 4-4 4M14 4l-4 16"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8l-4 4 4 4M17 8l4 4-4 4M14 4l-4 16"/></svg>
         </span>
         <span data-brand>API PORTAL</span>
       </div>
@@ -111,7 +120,7 @@
       <div class="panel">
         <h3>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          <span data-i18n="dash.remaining">Token balance</span>
+          <span id="remainingLabel" data-i18n="dash.remainingTokens">Token balance</span>
         </h3>
         <div class="big" id="remaining">—</div>
         <div class="sub2" id="remainingSub" data-i18n="dash.ofPackage">of — package</div>
@@ -124,7 +133,7 @@
           <span data-i18n="dash.used">Used</span>
         </h3>
         <div class="big small" id="used">—</div>
-        <div class="sub2" id="usedSub" data-i18n="dash.usedSub">total credits spent</div>
+        <div class="sub2" id="usedSub" data-i18n="dash.usedTokenSub">total tokens spent</div>
         <div class="sub2" id="usedTokens"></div>
       </div>
       <div class="panel">
@@ -133,7 +142,7 @@
           <span data-i18n="dash.plan">Plan</span>
         </h3>
         <div class="big small" id="planName">—</div>
-        <div class="sub2" id="expiry" data-i18n="dash.noExpiry">valid until you spend all your tokens</div>
+        <div class="sub2" id="expiry" data-i18n="dash.noExpiryTokens">valid until you spend all your tokens</div>
       </div>
     </div>
 
@@ -152,22 +161,24 @@
         </div>
       </div>
 
-      <div class="tabs" role="tablist">
-        <button class="tab active" type="button" data-tab="curl" role="tab">cURL</button>
-        <button class="tab" type="button" data-tab="py" role="tab">Python</button>
-        <button class="tab" type="button" data-tab="js" role="tab">Node.js</button>
-        <button class="tab" type="button" data-tab="env" role="tab">.env</button>
-        <button class="tab" type="button" data-tab="cursor" role="tab">Cursor</button>
-        <button class="tab" type="button" data-tab="vscode" role="tab">VS Code (Cline/Roo Code)</button>
-        <button class="tab" type="button" data-tab="continue" role="tab">Continue.dev</button>
-        <button class="tab" type="button" data-tab="grok" role="tab">Grok CLI</button>
-        <button class="tab" type="button" data-tab="claude" role="tab">Claude CLI</button>
-        <button class="tab" type="button" data-tab="codex" role="tab">Codex CLI</button>
-        <button class="tab" type="button" data-tab="opencode" role="tab">OpenCode</button>
-        <button class="tab" type="button" data-tab="aider" role="tab">Aider</button>
-        <button class="tab" type="button" data-tab="silly" role="tab">SillyTavern</button>
-        <button class="tab" type="button" data-tab="cherry" role="tab">Cherry / LobeChat</button>
-        <button class="btn ghost mini" id="copySnippet" type="button" style="margin-left:auto" data-i18n="dash.copy">Copy</button>
+      <div class="tabs-bar">
+        <div class="tabs" role="tablist">
+          <button class="tab active" type="button" data-tab="curl" role="tab">cURL</button>
+          <button class="tab" type="button" data-tab="py" role="tab">Python</button>
+          <button class="tab" type="button" data-tab="js" role="tab">Node.js</button>
+          <button class="tab" type="button" data-tab="env" role="tab">.env</button>
+          <button class="tab" type="button" data-tab="cursor" role="tab">Cursor</button>
+          <button class="tab" type="button" data-tab="vscode" role="tab">VS Code (Cline/Roo Code)</button>
+          <button class="tab" type="button" data-tab="continue" role="tab">Continue.dev</button>
+          <button class="tab" type="button" data-tab="grok" role="tab">Grok CLI</button>
+          <button class="tab" type="button" data-tab="claude" role="tab">Claude CLI</button>
+          <button class="tab" type="button" data-tab="codex" role="tab">Codex CLI</button>
+          <button class="tab" type="button" data-tab="opencode" role="tab">OpenCode</button>
+          <button class="tab" type="button" data-tab="aider" role="tab">Aider</button>
+          <button class="tab" type="button" data-tab="silly" role="tab">SillyTavern</button>
+          <button class="tab" type="button" data-tab="cherry" role="tab">Cherry / LobeChat</button>
+        </div>
+        <button class="btn ghost mini tabs-copy" id="copySnippet" type="button" data-i18n="dash.copy">Copy</button>
       </div>
 
       <!-- OS switch: only shown for tabs whose commands actually differ -->
@@ -342,7 +353,7 @@ aider --model {model}</code></pre>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 6-6"/></svg>
             <span data-i18n="dash.modelsTitle">Models</span>
           </h3>
-          <p class="usage-rates-note" data-i18n="dash.modelsNote">Credits per 1M tokens, plus live availability.</p>
+          <p id="billingNote" class="usage-rates-note"></p>
         </div>
         <span class="status-summary" id="modelStatusSummary">—</span>
       </div>
@@ -351,8 +362,8 @@ aider --model {model}</code></pre>
            be two tabs, but they describe the same list, so splitting them made
            the reader jump back and forth to answer "what does it cost and does
            it work". -->
-      <ul class="usage-rates-list" id="usageRates" aria-label="Models: price and status">
-        <li><code>&nbsp;</code><span class="mprice">&nbsp;</span></li>
+      <ul class="usage-rates-list" id="usageRates" aria-labelledby="usageRatesTitle">
+        <li><code>&nbsp;</code></li>
       </ul>
     </section>
 
@@ -362,11 +373,6 @@ aider --model {model}</code></pre>
       <div>
         <div class="section-kicker">TELEMETRY</div>
         <h2 data-i18n="dash.analytics">Потребление</h2>
-      </div>
-      <div class="unit-control" role="group" aria-label="Usage unit">
-        <span data-i18n="dash.unitLabel">Показывать</span>
-        <button type="button" data-unit-btn="credits" aria-pressed="true" data-i18n="dash.unitCredits">Кредиты</button>
-        <button type="button" data-unit-btn="tokens" aria-pressed="false" data-i18n="dash.unitTokens">Токены</button>
       </div>
     </div>
 
@@ -422,19 +428,34 @@ aider --model {model}</code></pre>
     <div class="panel">
       <h3>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>
-        <span data-i18n="dash.recent">Recent requests</span>
+        <span id="recentTitle" data-i18n="dash.recent">Recent requests</span>
       </h3>
+      <div class="request-guide">
+        <p id="requestUnitsNote"></p>
+        <details>
+          <summary data-i18n="dash.history.details">What affects the debit</summary>
+          <p data-i18n="dash.history.context">Input is the context sent to the model, including any conversation history and tool results sent with the request. It can grow as a conversation continues. Output is tokens generated by the model. Cache shows cache usage, not a discount amount.</p>
+          <p id="requestBillingNote"></p>
+          <p id="requestPackageNote" data-i18n="dash.history.packageConversion" hidden>The request cost is converted to package units using the terms fixed at purchase. The same number of model tokens can use different amounts of the package across models.</p>
+        </details>
+      </div>
       <div class="table-scroll">
-        <table>
+        <table class="request-table" aria-labelledby="recentTitle" aria-describedby="requestUnitsNote">
           <thead>
             <tr>
-              <th data-i18n="dash.t.time">Time</th>
-              <th data-i18n="dash.t.model">Model</th>
-              <th data-i18n="dash.t.input">Input</th>
-              <th data-i18n="dash.t.output">Output</th>
-              <th data-i18n="dash.t.cache">Cache</th>
-              <th data-i18n="dash.t.credits">Credits</th>
-              <th data-i18n="dash.t.status">Status</th>
+              <th rowspan="2" scope="col" data-i18n="dash.t.time">Time</th>
+              <th rowspan="2" scope="col" data-i18n="dash.t.model">Model</th>
+              <th colspan="3" scope="colgroup" class="request-token-group" data-i18n="dash.t.modelTokens">Model tokens</th>
+              <th rowspan="2" scope="col" id="chargedHeader" class="request-debit">
+                <span id="chargedLabel">Charged</span>
+                <small id="chargedUnit"></small>
+              </th>
+              <th rowspan="2" scope="col" data-i18n="dash.t.status">Status</th>
+            </tr>
+            <tr>
+              <th scope="col" data-i18n="dash.t.input">Input</th>
+              <th scope="col" data-i18n="dash.t.output">Output</th>
+              <th scope="col" data-i18n="dash.t.cache">Cache</th>
             </tr>
           </thead>
           <tbody id="recent"></tbody>

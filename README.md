@@ -118,16 +118,22 @@ Every variable is documented in `.env.example`. The ones that matter:
 | `PUBLIC_BASE_URL` | Optional full Base URL override, including the API path |
 | `STATUS_URL` | Optional external status page; defaults to same-origin `/status` |
 | `PORTAL_NAME` | Brand text shown in the portal |
-| `CREDITS_PER_USD` | Credit scale. `10000` means 1 credit = $0.0001 upstream |
+| `CREDITS_PER_USD` | Legacy credit scale used only for token-package and compatibility views |
+| `PORTAL_LOGIN_MAX_ATTEMPTS` | Maximum submitted-key login attempts per client window |
+| `PORTAL_LOGIN_WINDOW_MS` | Login-attempt window in milliseconds |
+| `PORTAL_LOGIN_BODY_BYTES` | Maximum JSON body size for key login (default 16 KiB) |
+| `PORTAL_SESSION_TTL_MS` | Lifetime of an opaque server-side portal session |
+| `PORTAL_SESSION_MAX` | Maximum server-side portal sessions retained in memory |
+| `TRUST_PROXY` | Accept a forwarded rate-limit address only from a loopback reverse proxy |
 | `UPSTREAM_DASHBOARD_TOKEN` | Optional New API management token; powers the full status page |
 | `UPSTREAM_SESSION`, `UPSTREAM_SESSION_USER` | Legacy dashboard authentication fallback |
 
-### About the credit unit
+### Balance units
 
-Prices and balances are published in **credits**, never in the provider's own
-quota units or dollars. `CREDITS_PER_USD` sets the scale and every published
-number derives from it — the price list, the per-request cost, the balance.
-Change it in one place and the whole portal follows.
+Ordinary New API keys configured with monetary quota are displayed in USD using
+the server's exact quota conversion. Token-package/reseller keys keep their
+package units. `CREDITS_PER_USD` remains only for legacy compatibility data and
+does not change an ordinary key's USD balance or the panel's billing tariffs.
 
 ### About the status page
 
@@ -189,11 +195,9 @@ you deploy locally, copy `.env.example` to `.env` and run:
 docker compose up -d --build
 ```
 
-Portainer must publish the container port as `3401:3401` (already defined in
-`compose.yaml`). Put an HTTPS reverse proxy such as Nginx Proxy Manager,
-Traefik, or Caddy in front of it and proxy to `api-portal:3401` on the Docker
-network. Do not expose this port directly to the Internet unless TLS is
-terminated elsewhere.
+Compose publishes the container port as `127.0.0.1:3401:3401`. Put an HTTPS
+reverse proxy on the same host and proxy to `127.0.0.1:3401`; the Node service
+is intentionally not reachable directly from the Internet.
 
 Required variables:
 
@@ -207,7 +211,9 @@ Required variables:
 | `PUBLIC_BASE_URL` | Optional full API URL override, for example `https://api.example.com/v1` |
 | `STATUS_URL` | Optional external status URL; defaults to `<portal>/status` |
 
-Recommended values: `MAX_BODY_BYTES=104857600` and `CREDITS_PER_USD=10000`.
+Recommended values: `MAX_BODY_BYTES=104857600`,
+`PORTAL_LOGIN_BODY_BYTES=16384`, `PORTAL_SESSION_TTL_MS=43200000`,
+`PORTAL_SESSION_MAX=5000`, and `CREDITS_PER_USD=10000`.
 `UPSTREAM_DASHBOARD_TOKEN` is optional and enables full provider telemetry on
 the status page. The two `UPSTREAM_SESSION*` settings are only a legacy
 fallback. `HOST` must remain `0.0.0.0` in a container; it is set by the Compose

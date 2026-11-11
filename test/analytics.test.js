@@ -6,8 +6,21 @@ const { buildAnalytics, normalizeLogRows } = require('../lib/analytics');
 const { classifyModelHealth } = require('../lib/health');
 const { publicBaseUrlFor, statusUrlFor } = require('../lib/public-url');
 const { buildServiceTelemetry } = require('../lib/service-telemetry');
+const { panelBasePrices } = require('../lib/pricing');
 
 const toCredits = (quota) => Number(quota || 0) / 50;
+
+test('panel tariffs preserve model-specific USD rates separately from token usage', () => {
+  assert.deepEqual(panelBasePrices({ quota_type: 0, model_ratio: 0.1, completion_ratio: 5 }),
+    { input_usd: 0.2, output_usd: 1, per_call_usd: null });
+  assert.deepEqual(panelBasePrices({ quota_type: 0, model_ratio: 0.01, completion_ratio: 6 }),
+    { input_usd: 0.02, output_usd: 0.12, per_call_usd: null });
+  assert.deepEqual(panelBasePrices({ quota_type: 1, model_price: 0.02, model_ratio: 0, completion_ratio: 0 }),
+    { input_usd: null, output_usd: null, per_call_usd: 0.02 });
+  for (const row of [{}, { model_ratio: -1 }, { model_ratio: 0.1, billing_expr: 'dynamic' }]) {
+    assert.deepEqual(panelBasePrices(row), { input_usd: null, output_usd: null, per_call_usd: null });
+  }
+});
 
 test('analytics ignores service rows and does not call them failures', () => {
   const rows = [
@@ -42,6 +55,66 @@ test('cache token variants are normalized', () => {
     other: JSON.stringify({ prompt_tokens_details: { cached_tokens: 12 }, cache_creation_tokens: 3 }),
   }];
   assert.equal(normalizeLogRows(rows, toCredits).records[0].cached, 15);
+});
+
+test('raw token charge comes from settlement metadata, never priced quota', () => {
+  const rows = [
+    {
+      type: 2,
+      request_id: 'reseller-1',
+      quota: 7442,
+      prompt_tokens: 71562,
+      completion_tokens: 572,
+      other: JSON.stringify({ reseller_token_quota: 72134 }),
+    },
+    {
+      type: 2,
+      request_id: 'raw-1',
+      quota: 500,
+      prompt_tokens: 900,
+      completion_tokens: 100,
+      other: JSON.stringify({ token_quota_mode: 'tokens', raw_token_quota: 1000 }),
+    },
+    {
+      type: 2,
+      request_id: 'wallet-1',
+      quota: 7442,
+      prompt_tokens: 71562,
+      completion_tokens: 572,
+    },
+  ];
+
+  const records = normalizeLogRows(rows, toCredits).records;
+  assert.equal(records[0].charged_tokens, 72134);
+  assert.equal(records[1].charged_tokens, 1000);
+  assert.equal(records[2].charged_tokens, null);
+  assert.equal(records[2].credits, 148.84);
+});
+
+test('paid image generation is preserved with its package-unit contribution', () => {
+  const rows = [{
+    type: 2,
+    request_id: 'image-1',
+    model_name: 'gpt-5.6-terra',
+    quota: 100638,
+    prompt_tokens: 6608,
+    completion_tokens: 46,
+    other: JSON.stringify({
+      group_ratio: 1,
+      reseller_base_cost_per_million: '0.08',
+      reseller_token_quota: 2515950,
+      tool_surcharges: [{ name: 'image_generation', count: 1, price: 201 }],
+    }),
+  }];
+
+  const [record] = normalizeLogRows(rows, toCredits).records;
+  assert.deepEqual(record.tool_surcharges, [{
+    name: 'image_generation',
+    count: 1,
+    price_per_thousand: 201,
+    cost_usd: 0.201,
+    package_units: 2512500,
+  }]);
 });
 
 test('model health is unknown without enough real observations', () => {

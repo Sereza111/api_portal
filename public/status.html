@@ -5,13 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title data-i18n="sp.title">Статус · api-portal API</title>
 <meta name="description" content="Live availability of api-portal API models.">
-<meta name="theme-color" content="#020203">
+<meta name="theme-color" content="#10141a">
+<script>try{if(localStorage.getItem('cx_theme')==='light')document.documentElement.dataset.theme='light'}catch(_){}</script>
 <meta name="robots" content="index, follow">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body class="status-page">
 
 <div class="lang-switch-float">
+  <div class="theme-toggle" role="group" aria-label="Theme">
+    <button class="theme-btn" type="button" data-theme-btn="dark" data-theme-label="dark" aria-pressed="true" title="Тёмная тема" aria-label="Тёмная тема">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+    </button>
+    <button class="theme-btn" type="button" data-theme-btn="light" data-theme-label="light" aria-pressed="false" title="Светлая тема" aria-label="Светлая тема">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+  </div>
   <div class="lang-toggle" role="group" aria-label="Language">
     <button class="lang-btn" type="button" data-lang-btn="ru" aria-pressed="false">RU</button>
     <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
@@ -59,10 +68,10 @@
       <span data-i18n="sp.legendTitle">Как это считается</span>
     </h3>
     <ul class="sp-legend-list">
-      <li><span class="status-dot" style="background:#10b981"></span><span data-i18n="sp.legendUp">Работает — не менее 90% успешных запросов, либо трафика слишком мало для вывода о сбое.</span></li>
-      <li><span class="status-dot" style="background:#f59e0b"></span><span data-i18n="sp.legendDeg">Сбои — от 40% до 90% успешных запросов.</span></li>
-      <li><span class="status-dot" style="background:#f43f5e"></span><span data-i18n="sp.legendDown">Не отвечает — меньше 40% успешных запросов.</span></li>
-      <li><span class="status-dot" style="background:#949494"></span><span data-i18n="sp.legendUnknown">Нет данных — за 24 часа обращений к модели не было.</span></li>
+      <li><span class="status-dot" style="background:var(--ok)"></span><span data-i18n="sp.legendUp">Работает — не менее 90% успешных запросов, либо трафика слишком мало для вывода о сбое.</span></li>
+      <li><span class="status-dot" style="background:var(--warn)"></span><span data-i18n="sp.legendDeg">Сбои — от 40% до 90% успешных запросов.</span></li>
+      <li><span class="status-dot" style="background:var(--bad)"></span><span data-i18n="sp.legendDown">Не отвечает — меньше 40% успешных запросов.</span></li>
+      <li><span class="status-dot" style="background:var(--dim)"></span><span data-i18n="sp.legendUnknown">Нет данных — за 24 часа обращений к модели не было.</span></li>
       <li><span class="sp-legend-strip" aria-hidden="true"></span><span data-i18n="sp.legendCell">Полоса под моделью — 48 получасовых интервалов за сутки, слева старые, справа свежие. Серый интервал означает отсутствие запросов.</span></li>
     </ul>
   </section>
@@ -74,6 +83,7 @@
   'use strict';
 
   var LANG_KEY = 'cx_lang';
+  var THEME_KEY = 'cx_theme';
   // Chosen window survives a reload: someone watching an incident over a week
   // should not be dropped back to 24h by the 60s refresh or a tab restore.
   var RANGE_KEY = 'cx_sp_range';
@@ -112,7 +122,9 @@
       'status.unknown': 'Нет данных',
       'status.available': 'Работает',
       'status.degraded': 'Сбои',
-      'status.down': 'Не отвечает'
+      'status.down': 'Не отвечает',
+      'theme.dark': 'Тёмная тема',
+      'theme.light': 'Светлая тема'
     },
     en: {
       'sp.title': 'Status · api-portal API',
@@ -145,15 +157,17 @@
       'status.unknown': 'No data',
       'status.available': 'Operational',
       'status.degraded': 'Degraded',
-      'status.down': 'Not responding'
+      'status.down': 'Not responding',
+      'theme.dark': 'Dark theme',
+      'theme.light': 'Light theme'
     }
   };
 
   var STATE_COLORS = {
-    available: '#10b981',
-    degraded: '#f59e0b',
-    down: '#f43f5e',
-    unknown: '#949494'
+    available: 'var(--ok)',
+    degraded: 'var(--warn)',
+    down: 'var(--bad)',
+    unknown: 'var(--dim)'
   };
 
   function $(s) { return document.querySelector(s); }
@@ -168,6 +182,26 @@
     var saved = localStorage.getItem(LANG_KEY);
     if (saved === 'ru' || saved === 'en') return saved;
     return (navigator.language || 'en').toLowerCase().indexOf('ru') === 0 ? 'ru' : 'en';
+  }
+
+  function getTheme() {
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+  }
+
+  function applyTheme(theme) {
+    var selected = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = selected;
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = selected === 'light' ? '#f4f6f8' : '#10141a';
+    document.querySelectorAll('[data-theme-btn]').forEach(function (button) {
+      button.setAttribute('aria-pressed', button.getAttribute('data-theme-btn') === selected ? 'true' : 'false');
+    });
+  }
+
+  function setTheme(theme) {
+    var selected = theme === 'light' ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, selected);
+    applyTheme(selected);
   }
 
   function t(key) {
@@ -217,6 +251,11 @@
       b.classList.toggle('active', active);
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
+    document.querySelectorAll('[data-theme-label]').forEach(function (b) {
+      var label = t('theme.' + b.getAttribute('data-theme-label'));
+      b.title = label;
+      b.setAttribute('aria-label', label);
+    });
     var range = getRange();
     document.querySelectorAll('[data-range-btn]').forEach(function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-range-btn') === range ? 'true' : 'false');
@@ -232,7 +271,7 @@
   function bucketColor(b) {
     if (!b || b.s !== 'data' || b.u == null) return 'var(--sp-cell-empty)';
     if (b.u >= 99.95) return STATE_COLORS.available;
-    if (b.u >= 90) return '#3fbf8f';
+    if (b.u >= 90) return STATE_COLORS.available;
     if (b.u >= 40) return STATE_COLORS.degraded;
     return STATE_COLORS.down;
   }
@@ -368,6 +407,12 @@
     });
   });
 
+  document.querySelectorAll('[data-theme-btn]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      setTheme(b.getAttribute('data-theme-btn'));
+    });
+  });
+
   document.querySelectorAll('[data-range-btn]').forEach(function (b) {
     b.addEventListener('click', function () {
       var next = b.getAttribute('data-range-btn');
@@ -382,6 +427,7 @@
     });
   });
 
+  applyTheme(getTheme());
   applyI18n();
   fetch('/api/config', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })

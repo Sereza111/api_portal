@@ -8,3 +8,6 @@ Dockerfile*
 compose*.yaml
 deploy
 README.md
+*.bak
+*.bak-*
+public/*.bak*

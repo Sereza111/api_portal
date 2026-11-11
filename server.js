@@ -6,7 +6,7 @@
  *   GET  /                        -> our own portal (public/index.html)
  *   POST /api/portal/me           -> key info + usage analytics (from upstream.example)
  *   GET  /api/model-status        -> per-model availability + our own latency
- *   GET  /api/pricing             -> model prices in credits
+ *   GET  /api/pricing             -> base model prices in USD
  *   GET  /api/news                -> news banner items
  *   GET  /api/config              -> base_url for the frontend
  *   ANY  /v1/*                    -> transparent proxy to https://upstream.example/v1/*
@@ -24,10 +24,14 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const net = require('node:net');
 const { URL } = require('node:url');
 const { buildAnalytics, normalizeLogRows } = require('./lib/analytics');
+const { normalizeUsageBalance, quotaToUsd } = require('./lib/balance');
+const { createPortalSessionStore } = require('./lib/portal-session');
 const { classifyModelHealth } = require('./lib/health');
 const { buildServiceTelemetry } = require('./lib/service-telemetry');
+const { panelBasePrices } = require('./lib/pricing');
 const {
   publicBaseUrlFor,
   publicOriginFor,
@@ -45,8 +49,20 @@ const API_PATH = '/' + String(process.env.API_PATH || 'v1').replace(/^\/+|\/+$/g
 const TRUST_PROXY = (process.env.TRUST_PROXY || '1') !== '0';
 const PORTAL_NAME = String(process.env.PORTAL_NAME || 'API PORTAL').trim() || 'API PORTAL';
 const MAX_BODY = parseInt(process.env.MAX_BODY_BYTES || String(64 * 1024 * 1024), 10);
+const configuredPortalLoginBodyBytes = Number(process.env.PORTAL_LOGIN_BODY_BYTES || 16 * 1024);
+const PORTAL_LOGIN_BODY_BYTES = Number.isFinite(configuredPortalLoginBodyBytes)
+  ? Math.max(1024, configuredPortalLoginBodyBytes)
+  : 16 * 1024;
 const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 const NEWS_FILE = process.env.NEWS_FILE || path.join(__dirname, 'news.json');
+const portalSessions = createPortalSessionStore({
+  ttlMs: Number(process.env.PORTAL_SESSION_TTL_MS || 12 * 60 * 60 * 1000),
+  maxSessions: Number(process.env.PORTAL_SESSION_MAX || 5000),
+});
+const PORTAL_LOGIN_WINDOW_MS = Math.max(1000, Number(process.env.PORTAL_LOGIN_WINDOW_MS || 60 * 1000));
+const PORTAL_LOGIN_MAX_ATTEMPTS = Math.max(1, Number(process.env.PORTAL_LOGIN_MAX_ATTEMPTS || 10));
+const PORTAL_LOGIN_BUCKETS_MAX = Math.max(100, Number(process.env.PORTAL_LOGIN_BUCKETS_MAX || 5000));
+const portalLoginAttempts = new Map();
 
 const CLIENT_KEYS = new Set(
   (process.env.CLIENT_KEYS || '')
@@ -182,6 +198,7 @@ function publicUrlOptions() {
 const STRIP_REQ = new Set([
   'host', 'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
   'te', 'trailers', 'transfer-encoding', 'upgrade', 'content-length',
+  'cookie',
   'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-for', 'x-real-ip',
   'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
 ]);
@@ -190,6 +207,7 @@ const STRIP_RES = new Set([
   'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
   'te', 'trailers', 'transfer-encoding', 'upgrade',
   'content-length', 'content-encoding',
+  'set-cookie',
   'strict-transport-security', 'alt-svc', 'report-to', 'nel',
   'cf-ray', 'cf-cache-status', 'server',
 ]);
@@ -235,21 +253,80 @@ function extractClientKey(req) {
   return '';
 }
 
-function readBody(req) {
+function extractPortalKey(req) {
+  return extractClientKey(req) || portalSessions.get(req.headers.cookie);
+}
+
+function requestClientAddress(req) {
+  const remoteAddress = String(req.socket.remoteAddress || '').trim();
+  const normalizedRemote = remoteAddress.startsWith('::ffff:')
+    ? remoteAddress.slice('::ffff:'.length)
+    : remoteAddress;
+  const proxyIsLoopback = normalizedRemote === '127.0.0.1' || normalizedRemote === '::1';
+
+  if (TRUST_PROXY && proxyIsLoopback) {
+    const chain = String(req.headers['x-forwarded-for'] || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    // nginx appends its direct peer to the right side of X-Forwarded-For.
+    // Selecting that hop prevents a caller-controlled leftmost value from
+    // creating a fresh login-rate bucket for every request.
+    const forwarded = chain.at(-1) || '';
+    const normalizedForwarded = forwarded.startsWith('::ffff:')
+      ? forwarded.slice('::ffff:'.length)
+      : forwarded;
+    if (net.isIP(normalizedForwarded)) return normalizedForwarded;
+  }
+  return normalizedRemote || 'unknown';
+}
+
+function consumePortalLoginAttempt(req) {
+  const now = Date.now();
+  const address = requestClientAddress(req);
+  const current = portalLoginAttempts.get(address);
+  const bucket = !current || now - current.startedAt >= PORTAL_LOGIN_WINDOW_MS
+    ? { startedAt: now, attempts: 0 }
+    : current;
+  bucket.attempts += 1;
+
+  if (!portalLoginAttempts.has(address) && portalLoginAttempts.size >= PORTAL_LOGIN_BUCKETS_MAX) {
+    const oldest = portalLoginAttempts.keys().next().value;
+    if (oldest !== undefined) portalLoginAttempts.delete(oldest);
+  }
+  portalLoginAttempts.delete(address);
+  portalLoginAttempts.set(address, bucket);
+
+  return bucket.attempts <= PORTAL_LOGIN_MAX_ATTEMPTS
+    ? 0
+    : Math.max(1, Math.ceil((PORTAL_LOGIN_WINDOW_MS - (now - bucket.startedAt)) / 1000));
+}
+
+function maskApiKey(key) {
+  return key.length > 12 ? `${key.slice(0, 7)}…${key.slice(-4)}` : 'sk-…';
+}
+
+function readBody(req, maxBytes = MAX_BODY) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    let settled = false;
     req.on('data', (c) => {
+      if (settled) return;
       size += c.length;
-      if (size > MAX_BODY) {
+      if (size > maxBytes) {
+        settled = true;
         reject(Object.assign(new Error('payload_too_large'), { tooLarge: true }));
-        req.destroy();
         return;
       }
       chunks.push(c);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+    req.on('end', () => {
+      if (!settled) resolve(Buffer.concat(chunks));
+    });
+    req.on('error', (error) => {
+      if (!settled) reject(error);
+    });
   });
 }
 
@@ -493,6 +570,16 @@ const UPSTREAM_RETRY_AFTER_S = 60;
 const meInflight = new Map();
 const lastUpstreamHit = new Map();
 
+function rememberUpstreamHit(key, at = Date.now()) {
+  const cacheKey = meCacheKey(key);
+  lastUpstreamHit.delete(cacheKey);
+  if (lastUpstreamHit.size >= ME_CACHE_MAX) {
+    const oldest = lastUpstreamHit.keys().next().value;
+    if (oldest !== undefined) lastUpstreamHit.delete(oldest);
+  }
+  lastUpstreamHit.set(cacheKey, at);
+}
+
 // ---- what a given key may call ----
 // Entitlement is a property of the KEY, not of our server: two clients can hold
 // keys with different model sets (7 vs 18 observed live). One shared cache feeds
@@ -566,20 +653,38 @@ function meCacheSet(key, payload) {
 async function handlePortalMe(req, res) {
   let body = null;
   try {
-    const buf = await readBody(req);
+    const buf = await readBody(req, PORTAL_LOGIN_BODY_BYTES);
     body = buf && buf.length ? JSON.parse(buf.toString('utf8')) : {};
-  } catch (_) {
+  } catch (error) {
+    if (error && error.tooLarge) {
+      return jsonError(res, 413, 'payload_too_large', 'Request body too large');
+    }
     return jsonError(res, 400, 'bad_request', 'Malformed JSON body');
   }
 
-  const clientKey = (body && body.key ? String(body.key) : '').trim() || extractClientKey(req);
+  const submittedKey = (body && body.key ? String(body.key) : '').trim();
+  if (submittedKey) {
+    const retryAfter = consumePortalLoginAttempt(req);
+    if (retryAfter > 0) {
+      res.setHeader('retry-after', String(retryAfter));
+      return sendJson(res, 429, { error: 'rate_limited', retry_after: retryAfter });
+    }
+  }
+  const clientKey = submittedKey || extractPortalKey(req);
   if (!clientKey) return jsonError(res, 400, 'missing_key', 'API key is required');
 
   const resolved = resolveUpstreamKey(clientKey);
   if (!resolved) return sendJson(res, 401, { error: 'invalid_key' });
 
   const cached = meCacheGet(clientKey);
-  if (cached && cached.fresh) {
+  // The dashboard explicitly asks for fresh data on login and on its periodic
+  // refresh.  Do not let the normal five-minute snapshot TTL hide an operator
+  // quota change from a customer who has just signed in again.
+  const refreshRequested = body && body.refresh === true;
+  if (cached && cached.fresh && !refreshRequested) {
+    if (submittedKey) {
+      res.setHeader('set-cookie', portalSessions.create(clientKey, req.headers.cookie));
+    }
     return sendJson(res, 200, { ...cached.payload, cached: true });
   }
 
@@ -590,6 +695,9 @@ async function handlePortalMe(req, res) {
   // the snapshot we already have instead of risking a 429.
   const sinceHit = Date.now() - (lastUpstreamHit.get(ck) || 0);
   if (cached && sinceHit < ME_MIN_GAP_MS) {
+    if (submittedKey) {
+      res.setHeader('set-cookie', portalSessions.create(clientKey, req.headers.cookie));
+    }
     return sendJson(res, 200, { ...cached.payload, cached: true, stale_ms: cached.age });
   }
 
@@ -605,11 +713,16 @@ async function handlePortalMe(req, res) {
     meInflight.set(ck, job);
   }
   const out = await job;
+  if (out.status === 200 && submittedKey) {
+    res.setHeader('set-cookie', portalSessions.create(clientKey, req.headers.cookie));
+  } else if (out.status === 401 && !submittedKey) {
+    res.setHeader('set-cookie', portalSessions.destroy(req.headers.cookie));
+  }
   return sendJson(res, out.status, out.body);
 }
 
 async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
-  lastUpstreamHit.set(meCacheKey(clientKey), Date.now());
+  rememberUpstreamHit(clientKey);
 
   // Balance/auth is the only request required to enter the dashboard. Run it
   // first so an optional log request cannot consume the last shared IP-rate
@@ -621,6 +734,7 @@ async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
   // user like their key stopped working.
   if (usage.status === 401 || usage.status === 403) {
     meCacheDrop(clientKey);
+    lastUpstreamHit.delete(meCacheKey(clientKey));
     return { status: 401, body: { error: 'invalid_key' } };
   }
 
@@ -649,10 +763,13 @@ async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
   const models = { json: { data: (modelIdsCached || []).map((id) => ({ id })) } };
   const u = usage.json.data;
 
-  const granted = Number(u.total_granted || 0);
-  const used = Number(u.total_used || 0);
-  const available = u.total_available != null ? Number(u.total_available) : Math.max(0, granted - used);
-  const unlimited = !!u.unlimited_quota;
+  const balance = normalizeUsageBalance(u);
+  const granted = balance.granted;
+  const used = balance.used;
+  const available = balance.available;
+  const unlimited = balance.unlimited;
+  const quotaMode = balance.quotaMode;
+  const usesTokenQuota = quotaMode === 'tokens';
 
   const modelIds = models.json && Array.isArray(models.json.data)
     ? models.json.data.map((m) => m.id).filter(Boolean)
@@ -669,9 +786,19 @@ async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
   const logRows = logRes && logRes.ok ? logRes.rows : null;
   const analyticsDegraded = logRows === null;
   const cachedAnalytics = cached && cached.payload && cached.payload.analytics;
-  const analytics = analyticsDegraded
+  let analytics = analyticsDegraded
     ? cachedAnalytics || null
-    : buildAnalytics(logRows, toCredits);
+    : buildAnalytics(logRows, usesTokenQuota ? toCredits : (quota) => quotaToUsd(quota, u));
+  if (analytics && !usesTokenQuota) {
+    analytics = {
+      ...analytics,
+      spent_usd: analytics.spent_credits,
+      tokens_by_day: analytics.tokens_by_day.map(({ credits, ...row }) => ({ ...row, usd: credits })),
+      by_model: analytics.by_model.map(({ credits, ...row }) => ({ ...row, usd: credits })),
+      recent: analytics.recent.map(({ credits, ...row }) => ({ ...row, usd: credits })),
+    };
+    delete analytics.spent_credits;
+  }
   const analyticsStatus = analyticsDegraded
     ? (cachedAnalytics ? 'stale' : 'unavailable')
     : 'live';
@@ -682,20 +809,28 @@ async function fetchMeSnapshot(clientKey, resolved, cached, baseUrl) {
     // product is the same regardless of package size.
     plan_tier: planTierFor(),
     balance_mode: 'package',
+    balance_unit: usesTokenQuota ? 'tokens' : 'usd',
+    quota_mode: quotaMode,
+    billing_basis: u.billing_basis || quotaMode,
     unlimited,
-    // Balance is published in our own credits only. The upstream quota numbers
-    // (and the dollars behind them) never reach the client.
-    currency: 'credits',
-    limit_credits: unlimited ? 0 : toCredits(granted),
-    used_credits: toCredits(used),
-    remaining_credits: unlimited ? null : toCredits(available),
-    held_credits: 0,
+    // Token-mode counters are package units. billing_basis distinguishes raw
+    // usage from reseller units converted from the panel's monetary tariff.
+    limit_tokens: usesTokenQuota && !unlimited ? granted : null,
+    used_tokens: usesTokenQuota ? used : null,
+    remaining_tokens: usesTokenQuota && !unlimited ? available : null,
+    held_tokens: usesTokenQuota ? 0 : null,
+    currency: balance.currency,
+    limit_usd: usesTokenQuota || unlimited ? null : granted,
+    used_usd: usesTokenQuota ? null : used,
+    remaining_usd: usesTokenQuota || unlimited ? null : available,
+    held_usd: usesTokenQuota ? null : 0,
     expires_at: u.expires_at ? new Date(Number(u.expires_at) * 1000).toISOString() : null,
     allowed_models: limits || modelIds,
     analytics,
     analytics_status: analyticsStatus,
     synced_at: new Date().toISOString(),
     _base_url: baseUrl,
+    key_hint: maskApiKey(clientKey),
   };
 
   // A snapshot with borrowed/empty analytics must not overwrite the last good
@@ -753,38 +888,41 @@ async function getPricingFor(upstreamKey, opts) {
     includeAll ? null : getEntitledFor(upstreamKey),
   ]);
   const rows = cat && cat.rows;
-  if (!rows) return { currency: 'credits', unit: '1M', items: [] };
+  if (!rows) return { currency: 'USD', price_basis: 'panel_base', unit: '1M', items: [] };
   // Unknown entitlement (cold start + upstream failure) publishes NOTHING. The
   // old fallback published the whole catalog, which advertised 19 models to a
   // key entitled to 7 -- every extra one answers 403 "This token has no access
   // to model ...". An empty payload makes the frontend keep its previous render
   // and retry, so a transient blip costs a stale list instead of a wrong one.
   if (!includeAll && (!entitled || !entitled.length)) {
-    return { currency: 'credits', unit: '1M', items: [] };
+    return { currency: 'USD', price_basis: 'panel_base', unit: '1M', items: [] };
   }
   const allowed = includeAll ? null : new Set(entitled);
 
-  // Upstream quota for 1M tokens = model_ratio * group_ratio * 1e6, converted
-  // straight into credits with the same rate used for balances. Both sides must
-  // share one rate, otherwise the published price stops matching what actually
-  // gets deducted. Margin lives in the sale price of a credit pack, not here.
+  // Show the configured panel tariff explicitly in USD. Neither raw usage nor
+  // a reseller's package debit can be recovered from catalog prices alone.
   const groupFallback = cat.group;
   const items = rows
     .map((m) => {
       const ratio = Number(m.model_ratio || 0);
       const compl = Number(m.completion_ratio || 0);
       const group = groupRatioOf(m, groupFallback);
-      const perM = (x) => toCredits(x * group * 1e6, 2);
+      const perMCredits = (x) => toCredits(x * group * 1e6, 2);
       const perCallQuota = Number(m.quota_type) === 1
         ? Number(m.model_price || 0) * UPSTREAM_QUOTA_PER_USD * group
         : null;
       const tier = longContextTier(m);
       return {
         model: m.model_name || '',
-        input_credits: ratio > 0 ? perM(ratio) : null,
-        output_credits: ratio > 0 && compl > 0 ? perM(ratio * compl) : null,
+        ...panelBasePrices(m),
+        input_tokens: null,
+        output_tokens: null,
+        cache_tokens: null,
+        per_call_tokens: null,
+        input_credits: ratio > 0 ? perMCredits(ratio) : null,
+        output_credits: ratio > 0 && compl > 0 ? perMCredits(ratio * compl) : null,
         cache_credits: ratio > 0 && Number(m.cache_ratio || 0) > 0
-          ? perM(ratio * Number(m.cache_ratio))
+          ? perMCredits(ratio * Number(m.cache_ratio))
           : null,
         context_length: Number(m.context_length || 0),
         per_call_credits: perCallQuota != null ? toCredits(perCallQuota, 4) : null,
@@ -802,7 +940,7 @@ async function getPricingFor(upstreamKey, opts) {
   items.sort((a, b) => (a._sort || 0) - (b._sort || 0));
   for (const it of items) delete it._sort;
 
-  return { currency: 'credits', unit: '1M', items };
+  return { currency: 'USD', price_basis: 'panel_base', unit: '1M', items };
 }
 
 // ---- shared upstream request log ----
@@ -1312,12 +1450,18 @@ const server = http.createServer(async (req, res) => {
       return handlePortalMe(req, res);
     }
 
+    if (pathname === '/api/portal/logout') {
+      if (req.method !== 'POST') return jsonError(res, 405, 'method_not_allowed', 'Use POST');
+      res.setHeader('set-cookie', portalSessions.destroy(req.headers.cookie));
+      return sendJson(res, 200, { success: true });
+    }
+
     if (pathname === '/api/model-status') {
       // Entitlement follows the caller's key. An anonymous hit (landing page)
       // falls back to our own token so the public list still renders; an
       // unknown key must NOT silently fall back, or a visitor would be shown a
       // catalog that is not theirs.
-      const ck = extractClientKey(req);
+      const ck = extractPortalKey(req);
       const rs = ck ? resolveUpstreamKey(ck) : null;
       if (ck && !rs) return jsonError(res, 401, 'invalid_api_key', 'Invalid or inactive API key');
       const bearer = rs ? rs.key : UPSTREAM_KEY;
@@ -1348,7 +1492,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/pricing') {
       // Same rule as /api/model-status: prices are filtered by the caller's own
       // entitlement, anonymous hits get our public set.
-      const ck = extractClientKey(req);
+      const ck = extractPortalKey(req);
       const rs = ck ? resolveUpstreamKey(ck) : null;
       if (ck && !rs) return jsonError(res, 401, 'invalid_api_key', 'Invalid or inactive API key');
       return sendJson(res, 200, await getPricingFor(rs ? rs.key : UPSTREAM_KEY));

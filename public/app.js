@@ -6,10 +6,9 @@
 
 (function () {
   const $ = (s) => document.querySelector(s);
-  const SESSION_KEY = 'cx_key';
   const LANG_KEY = 'cx_lang';
   const OS_KEY = 'cx_os';
-  const UNIT_KEY = 'cx_usage_unit';
+  const THEME_KEY = 'cx_theme';
   const NEWS_CLOSED_KEY = 'cx_news_closed_id';
 
   // Tabs whose commands genuinely differ per OS. Everything else (Python, Node,
@@ -58,18 +57,32 @@
       'login.disclaimer': 'Не передавайте свой API-ключ. Он нужен для входа и вызовов API.',
       'dash.copyConfig': 'Копировать конфиг',
       'dash.logout': 'Выйти',
-      'dash.remaining': 'Остаток кредитов',
+      'dash.remainingTokens': 'Остаток токенов',
+      'dash.remainingPackage': 'Остаток пакета',
+      'dash.usedPackageSub': 'израсходовано токенов пакета',
+      'dash.noExpiryPackage': 'действует до исчерпания пакета; расход зависит от модели и тарифа',
+      'dash.t.chargedPackage': 'Списано из пакета',
+      'dash.remainingCredits': 'Остаток кредитов',
+      'dash.remainingUsd': 'Остаток ключа',
       'dash.ofPackage': 'из —',
       'dash.used': 'Списано',
-      'dash.usedSub': 'всего израсходовано кредитов',
       'dash.usedTokenSub': 'всего израсходовано токенов',
+      'dash.usedCreditSub': 'всего израсходовано кредитов',
+      'dash.usedUsdSub': 'всего списано по тарифам, USD',
       'dash.plan': 'Тариф',
-      'dash.noExpiry': 'действует до тех пор, пока вы не потратите все свои кредиты',
+      'dash.noExpiryTokens': 'действует до тех пор, пока вы не потратите все свои токены',
+      'dash.noExpiryCredits': 'действует до тех пор, пока вы не потратите все свои кредиты',
+      'dash.noExpiryUsd': 'действует до исчерпания баланса; списание идёт по тарифам моделей',
       'dash.connect': 'Подключение API',
       'dash.copy': 'Копировать',
       'dash.compatNote': 'OpenAI-совместимо — подставьте Base URL и свой ключ в любой OpenAI-клиент или SDK. Доступные модели — в разделе выше.',
       'dash.modelsTitle': 'Модели',
-      'dash.modelsNote': 'Кредиты за 1 млн токенов: вход / выход. Справа — доступность модели: задержка и успешность считаются по реальному трафику.',
+      'dash.modelsNote': 'Токены пакета за 1 млн токенов модели: вход / выход. Справа — доступность по реальному трафику.',
+      'dash.modelsNoteCredits': 'Кредиты за 1 млн токенов модели: вход / выход. Справа — доступность по реальному трафику.',
+      'dash.modelsPanelNote': 'Базовые тарифы New API в USD: вход / выход за 1 млн токенов или за вызов. Коэффициент источника применяется отдельно.',
+      'dash.rawBillingNote': 'Текстовые запросы: из пакета списываются входные и выходные токены без чтения кэша. Сумма списания по каждому запросу — в журнале ниже.',
+      'dash.tariffBillingNote': 'Токены пакета — условные единицы баланса по цене его покупки. Это ориентир, а не количество токенов, которое выдаст любая модель. Запрос оплачивается по тарифу New API: учитываются модель, вход, выход, кэш и источник; для аудио и видео — их тарифы. В журнале вход, выход и кэш показывают фактические токены модели, а «Списано из пакета» — расход баланса.',
+      'dash.walletBillingNote': 'Списание в USD рассчитывается по тарифу модели и выбранного источника. Фактические токены и списанная сумма показаны отдельно в журнале.',
       'status.operational': 'Все модели работают',
       'status.partial': 'Частичные перебои',
       'status.outage': 'Модели недоступны',
@@ -91,24 +104,40 @@
       'dash.tokens14': 'Расход — за 14 дней',
       'dash.byModel': 'По моделям',
       'dash.analytics': 'Потребление',
-      'dash.unitLabel': 'Показывать',
-      'dash.unitCredits': 'Кредиты',
-      'dash.unitTokens': 'Токены',
       'sync.live': 'Синхронизировано {time}',
       'sync.cached': 'Последний снимок · {time}',
       'sync.stale': 'Данные журнала временно устарели',
       'sync.unavailable': 'Журнал New API временно недоступен — нули не подставлены',
       'dash.recent': 'Недавние запросы',
+      'dash.history.packageNote': 'Справа — расход пакета за один запрос по тарифу New API. Это не сумма токенов слева и не накопительный итог. Кэш учитывается по тарифу, а не автоматически вычитается целиком.',
+      'dash.history.creditNote': 'Справа — расход кредитов за один запрос по тарифу New API. Это не сумма токенов слева и не накопительный итог. Кэш учитывается по тарифу, а не автоматически вычитается целиком.',
+      'dash.history.usdNote': 'Справа — сумма в USD, списанная за отдельный запрос по тарифу модели. Вход, выход, кэш и платные инструменты уже учтены в итоговом списании.',
+      'dash.history.tokenNote': 'Справа — списание токенов за один запрос из журнала New API. Каждая строка показывает отдельное списание, а не накопительный итог.',
+      'dash.history.details': 'Что влияет на списание',
+      'dash.history.context': 'Вход — переданный модели контекст, включая отправленную историю диалога и результаты инструментов. Поэтому в длинном диалоге вход может расти. Выход — токены, сгенерированные моделью. Кэш показывает работу с кэшем; это не размер скидки.',
+      'dash.history.tariff': 'Вход, выход и кэш оплачиваются по настроенным тарифам модели и источника. Платные вызовы инструментов, аудио и видео входят в итог, если их начислила New API. Кабинет показывает записанное списание и не пересчитывает его по формуле «вход + выход − кэш».',
+      'dash.history.packageConversion': 'Стоимость запроса переводится в единицы пакета по условиям его покупки. Одинаковое число токенов у разных моделей может расходовать разное количество единиц пакета.',
+      'dash.history.packageUnit': 'ед. пакета · за запрос',
+      'dash.history.tokenUnit': 'токены · за запрос',
+      'dash.history.creditUnit': 'кредиты · за запрос',
+      'dash.history.usdUnit': 'USD · за запрос',
+      'dash.history.imageDebit': 'изображение',
+      'dash.history.imageTool': 'Генерация изображения',
+      'dash.history.toolCall': 'Платный инструмент',
+      'dash.t.modelTokens': 'Токены модели',
       'dash.t.time': 'Время',
       'dash.t.model': 'Модель',
-      'dash.t.input': 'Вход, токены',
-      'dash.t.output': 'Выход, токены',
-      'dash.t.cache': 'Кэш, токены',
-      'dash.t.credits': 'Кредиты',
+      'dash.t.input': 'Вход',
+      'dash.t.output': 'Выход',
+      'dash.t.cache': 'Кэш',
+      'dash.t.chargedTokens': 'Списано, токены',
+      'dash.t.chargedCredits': 'Списано, кредиты',
+      'dash.t.chargedUsd': 'Списано, USD',
       'dash.t.status': 'Статус',
       'err.empty': 'Введите API-ключ.',
       'err.invalid': 'Неверный или неактивный API-ключ.',
       'err.network': 'Не удалось связаться с сервером. Попробуйте позже.',
+      'err.logout': 'Не удалось завершить защищённую сессию. Повторите выход.',
       'err.rateLimited': 'Лимит запросов. Повторите вход вручную.',
       'err.rateLimitedWait': 'Слишком много запросов. Можно повторить через {s} с…',
       'err.upstream': 'Провайдер временно недоступен. Ключ в порядке, попробуйте позже.',
@@ -118,12 +147,16 @@
       'package': ' в пакете',
       'perCall': 'за вызов',
       'perM': 'за 1M',
+      'tokens': 'токенов',
       'credits': 'кредитов',
+      'usd': 'USD',
       'noData': 'нет данных',
       'noRequests': 'запросов нет',
       'noModels': '(нет доступных моделей)',
       'status.ok': '✓ OK',
       'status.fail': '✕ сбой',
+      'theme.dark': 'Тёмная тема',
+      'theme.light': 'Светлая тема',
       'held': 'в работе',
       'heldSuffix': ' — вернутся, если запрос не выполнится',
       'requests': 'запр.',
@@ -141,18 +174,32 @@
       'login.disclaimer': 'Do not share your API key. It is used for login and API calls.',
       'dash.copyConfig': 'Copy config',
       'dash.logout': 'Logout',
-      'dash.remaining': 'Credit balance',
+      'dash.remainingTokens': 'Token balance',
+      'dash.remainingPackage': 'Package balance',
+      'dash.usedPackageSub': 'package tokens spent',
+      'dash.noExpiryPackage': 'valid until the package is exhausted; usage depends on the model and tariff',
+      'dash.t.chargedPackage': 'Package debit',
+      'dash.remainingCredits': 'Credit balance',
+      'dash.remainingUsd': 'Key balance',
       'dash.ofPackage': 'of —',
       'dash.used': 'Spent',
-      'dash.usedSub': 'total credits spent',
       'dash.usedTokenSub': 'total tokens spent',
+      'dash.usedCreditSub': 'total credits spent',
+      'dash.usedUsdSub': 'total charged at model rates, USD',
       'dash.plan': 'Plan',
-      'dash.noExpiry': 'valid until you spend all your credits',
+      'dash.noExpiryTokens': 'valid until you spend all your tokens',
+      'dash.noExpiryCredits': 'valid until you spend all your credits',
+      'dash.noExpiryUsd': 'valid until the balance is exhausted; model rates determine usage',
       'dash.connect': 'API connection',
       'dash.copy': 'Copy',
       'dash.compatNote': 'OpenAI-compatible — set Base URL and your key in any OpenAI client or SDK. Available models are listed above.',
       'dash.modelsTitle': 'Models',
-      'dash.modelsNote': 'Credits per 1M tokens: input / output. On the right — live availability: latency and success rate are measured on real traffic.',
+      'dash.modelsNote': 'Package tokens per 1M model tokens: input / output. On the right: availability measured from real traffic.',
+      'dash.modelsNoteCredits': 'Credits per 1M model tokens: input / output. On the right: availability measured from real traffic.',
+      'dash.modelsPanelNote': 'New API base prices in USD: input / output per 1M tokens, or per call. The source multiplier applies separately.',
+      'dash.rawBillingNote': 'Text requests debit input and output tokens from the package, excluding cache reads. See the request log below for each debit.',
+      'dash.tariffBillingNote': 'Package tokens are balance units fixed by the purchase price. They are an estimate, not a guaranteed number of tokens for every model. Requests use New API tariffs for the model, input, output, cache and source; audio and video use their respective rates. Input, output and cache in the log are actual model tokens; Package debit is the amount spent from the balance.',
+      'dash.walletBillingNote': 'USD is charged at the model and source rates. The log shows actual tokens and the charged amount separately.',
       'status.operational': 'All models operational',
       'status.partial': 'Partial outage',
       'status.outage': 'Models unavailable',
@@ -174,25 +221,41 @@
       'dash.tokens14': 'Usage — last 14 days',
       'dash.byModel': 'By model',
       'dash.analytics': 'Usage',
-      'dash.unitLabel': 'Display',
-      'dash.unitCredits': 'Credits',
-      'dash.unitTokens': 'Tokens',
       'sync.live': 'Synced {time}',
       'sync.cached': 'Last snapshot · {time}',
       'sync.stale': 'Request log data is temporarily stale',
       'sync.unavailable': 'New API log is temporarily unavailable — no zero values were substituted',
       'dash.recent': 'Recent requests',
+      'dash.history.packageNote': 'On the right: package units spent on each request at New API rates. This is neither the sum of the tokens on the left nor a running total. Cache is priced at its configured rate, not automatically deducted in full.',
+      'dash.history.creditNote': 'On the right: credits spent on each request at New API rates. This is neither the sum of the tokens on the left nor a running total. Cache is priced at its configured rate, not automatically deducted in full.',
+      'dash.history.usdNote': 'On the right: the USD amount charged for each request at the model tariff. Input, output, cache and paid tools are already included in the recorded debit.',
+      'dash.history.tokenNote': 'On the right: tokens debited for each request, as recorded by New API. Each row is a separate debit, not a running total.',
+      'dash.history.details': 'What affects the debit',
+      'dash.history.context': 'Input is the context sent to the model, including any conversation history and tool results sent with the request. It can grow as a conversation continues. Output is tokens generated by the model. Cache shows cache usage, not a discount amount.',
+      'dash.history.tariff': 'Input, output and cache use the configured model and source rates. Paid tool calls, audio and video are included when billed by New API. The portal displays the recorded debit; it does not recalculate it as input + output minus cache.',
+      'dash.history.packageConversion': 'The request cost is converted to package units using the terms fixed at purchase. The same number of model tokens can use different amounts of the package across models.',
+      'dash.history.packageUnit': 'package units · per request',
+      'dash.history.tokenUnit': 'tokens · per request',
+      'dash.history.creditUnit': 'credits · per request',
+      'dash.history.usdUnit': 'USD · per request',
+      'dash.history.imageDebit': 'image',
+      'dash.history.imageTool': 'Image generation',
+      'dash.history.toolCall': 'Paid tool',
+      'dash.t.modelTokens': 'Model tokens',
       'dash.t.time': 'Time',
       'dash.t.model': 'Model',
-      'dash.t.input': 'Input, tokens',
-      'dash.t.output': 'Output, tokens',
-      'dash.t.cache': 'Cache, tokens',
-      'dash.t.credits': 'Credits',
+      'dash.t.input': 'Input',
+      'dash.t.output': 'Output',
+      'dash.t.cache': 'Cache',
+      'dash.t.chargedTokens': 'Charged, tokens',
+      'dash.t.chargedCredits': 'Charged, credits',
+      'dash.t.chargedUsd': 'Charged, USD',
       'dash.t.status': 'Status',
       'noRequests': 'no requests',
       'err.empty': 'Enter your API key.',
       'err.invalid': 'Invalid or inactive API key.',
       'err.network': 'Could not reach the server. Try again later.',
+      'err.logout': 'Could not close the protected session. Try logging out again.',
       'err.rateLimited': 'Request limit reached. Retry the login manually.',
       'err.rateLimitedWait': 'Too many requests. You can retry in {s}s…',
       'err.upstream': 'Provider temporarily unavailable. Your key is fine, try again later.',
@@ -203,10 +266,14 @@
       'perCall': 'per call',
       'perM': 'per 1M',
       'credits': 'credits',
+      'usd': 'USD',
+      'tokens': 'tokens',
       'noData': 'no data',
       'noModels': '(no models available)',
       'status.ok': '✓ OK',
       'status.fail': '✕ failed',
+      'theme.dark': 'Dark theme',
+      'theme.light': 'Light theme',
       'held': 'in flight',
       'heldSuffix': ' — returned if the request does not complete',
       'requests': 'reqs',
@@ -253,21 +320,24 @@
     return (I18N[lang] && I18N[lang][key]) || (I18N.ru[key]) || key;
   }
 
-  function getUnit() {
-    return localStorage.getItem(UNIT_KEY) === 'tokens' ? 'tokens' : 'credits';
+  function getTheme() {
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
   }
 
-  function syncUnitToggle() {
-    const unit = getUnit();
-    document.querySelectorAll('[data-unit-btn]').forEach((button) => {
-      button.setAttribute('aria-pressed', button.getAttribute('data-unit-btn') === unit ? 'true' : 'false');
+  function applyTheme(theme) {
+    const selected = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = selected;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = selected === 'light' ? '#f4f6f8' : '#10141a';
+    document.querySelectorAll('[data-theme-btn]').forEach((button) => {
+      button.setAttribute('aria-pressed', button.getAttribute('data-theme-btn') === selected ? 'true' : 'false');
     });
   }
 
-  function setUnit(unit) {
-    localStorage.setItem(UNIT_KEY, unit === 'tokens' ? 'tokens' : 'credits');
-    syncUnitToggle();
-    renderAnalytics();
+  function setTheme(theme) {
+    const selected = theme === 'light' ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, selected);
+    applyTheme(selected);
   }
 
   // ---------------- OS variants ----------------
@@ -404,7 +474,7 @@
     return allowedModels().filter((m) => /^claude-/i.test(m));
   }
   // Claude CLI runs background chores (titles, file summaries) on
-  // ANTHROPIC_SMALL_FAST_MODEL. Pointing that at Opus burns 5x the credits for
+  // ANTHROPIC_SMALL_FAST_MODEL. Pointing that at Opus burns 5x the budget for
   // work the user never reads, so prefer Haiku, then Sonnet, then whatever is
   // left.
   function claudeFastModel() {
@@ -480,6 +550,11 @@
       const val = (I18N[lang] && I18N[lang][key]) || I18N.ru[key] || key;
       el.textContent = val;
     });
+    document.querySelectorAll('[data-theme-label]').forEach((el) => {
+      const label = t('theme.' + el.getAttribute('data-theme-label'));
+      el.title = label;
+      el.setAttribute('aria-label', label);
+    });
     // гайды: data-i18n-ru='{"html":"..."}' / data-i18n-en='{"html":"..."}'
     document.querySelectorAll('[data-i18n-ru]').forEach((el) => {
       const attrName = 'data-i18n-' + lang;
@@ -511,6 +586,22 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
     return String(n);
   }
+  function fmtPackageTokens(n) {
+    const value = Number(n);
+    if (!Number.isFinite(value)) return '—';
+    return new Intl.NumberFormat(getLang() === 'ru' ? 'ru-RU' : 'en-US', {
+      maximumFractionDigits: 0,
+    }).format(Math.max(0, Math.round(value)));
+  }
+  function fmtUsd(n) {
+    const value = Number(n);
+    if (!Number.isFinite(value)) return '—';
+    const digits = value > 0 && value < 0.01 ? 6 : 2;
+    return '$' + new Intl.NumberFormat(getLang() === 'ru' ? 'ru-RU' : 'en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: digits,
+    }).format(Math.max(0, value));
+  }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
@@ -537,7 +628,9 @@
       const r = await fetch('/api/portal/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key }),
+        // A new login must re-read the token quota. The server still applies
+        // its short per-key rate-limit guard when logins happen back-to-back.
+        body: JSON.stringify({ key, refresh: true }),
       });
       if (r.status === 401 || r.status === 403) {
         showErr(t('err.invalid'));
@@ -562,7 +655,6 @@
       }
       if (!r.ok) throw new Error('http ' + r.status);
       const data = await r.json();
-      sessionStorage.setItem(SESSION_KEY, key);
       resetBtn(btn, orig);
       render(data, key);
       startDashboardRefresh();
@@ -600,10 +692,17 @@
     tick();
     retryTimer = setInterval(tick, 1000);
   }
-  function logout() {
+  async function logout() {
     if (dashboardTimer) clearInterval(dashboardTimer);
     dashboardTimer = null;
-    sessionStorage.removeItem(SESSION_KEY);
+    try {
+      const response = await fetch('/api/portal/logout', { method: 'POST', keepalive: true });
+      if (!response.ok) throw new Error('logout_failed');
+    } catch (_) {
+      showErr(t('err.logout'));
+      startDashboardRefresh();
+      return;
+    }
     $('#dash').hidden = true;
     $('#login').style.display = 'flex';
     $('#key').value = '';
@@ -615,48 +714,29 @@
   }
 
 
-  // Credit amounts are exact decimals, so they must not go through fmt()'s
-  // K/M abbreviation: "937.5" has to stay readable as a price.
-  function fmtCr(n) {
-    const v = Number(n) || 0;
-    // Sub-credit charges need more precision than the 2 decimals used for
-    // balances, but both must go through the same locale so the dashboard does
-    // not mix "0.26" and "999,74" on the same screen.
-    const digits = v > 0 && v < 1 ? 4 : 2;
-    return v.toLocaleString(getLang() === 'ru' ? 'ru-RU' : 'en-US', {
-      maximumFractionDigits: digits,
-    });
-  }
-
-  // ---------------- models: id + price + status in one row ----------------
-  // Price and status arrive from two endpoints that finish independently, so
-  // both are cached here and every arrival re-renders the merged list. Two
-  // separate lists (or tabs) forced the reader to cross-reference by hand to
-  // answer "what does this cost and is it up right now".
+  // ---------------- models: id + status in one row ----------------
+  // Pricing still supplies the catalog and its ordering; rates are not shown
+  // in the key viewer. Status arrives independently and re-renders the list.
   const STATE_COLORS = {
-    available: '#10b981',
-    degraded: '#f59e0b',
-    down: '#f43f5e',
-    unknown: '#949494',
+    available: 'var(--ok)',
+    degraded: 'var(--warn)',
+    down: 'var(--bad)',
+    unknown: 'var(--dim)',
   };
 
   let pricingData = null;
   let statusData = null;
 
-  function priceLabel(x) {
-    if (!x) return '—';
-    if (x.per_call_credits != null) return fmtCr(x.per_call_credits) + ' / ' + t('perCall');
-    if (x.input_credits != null) {
-      const out = x.output_credits != null ? ' / ' + fmtCr(x.output_credits) : '';
-      return fmtCr(x.input_credits) + out;
-    }
-    return '—';
-  }
-
   function renderModels() {
     const ul = $('#usageRates');
     const summary = $('#modelStatusSummary');
     if (!ul) return;
+    const billingNote = $('#billingNote');
+    if (billingNote) {
+      const data = window._lastData || {};
+      billingNote.textContent = t(data.billing_basis === 'panel_tariff_v1' ? 'dash.tariffBillingNote'
+        : data.quota_mode === 'tokens' ? 'dash.rawBillingNote' : 'dash.walletBillingNote');
+    }
 
     const priceBy = new Map();
     ((pricingData && pricingData.items) || []).forEach((x) => {
@@ -689,8 +769,10 @@
     const rank = (id) => {
       const x = priceBy.get(id);
       if (!x) return Number.POSITIVE_INFINITY;
-      if (x.input_credits != null) return Number(x.input_credits);
-      if (x.per_call_credits != null) return Number(x.per_call_credits);
+      const input = x.input_usd;
+      const perCall = x.per_call_usd;
+      if (input != null) return Number(input);
+      if (perCall != null) return Number(perCall);
       return Number.POSITIVE_INFINITY;
     };
     ids.sort((a, b) => (rank(a) - rank(b)) || a.localeCompare(b));
@@ -729,18 +811,7 @@
 
     ul.innerHTML = ids
       .map((id) => {
-        const x = priceBy.get(id);
         const m = stateBy.get(id);
-
-        // Models that get more expensive past a context threshold must say so,
-        // otherwise the published price understates a long request.
-        let tier = '';
-        if (x && x.long_context_from && x.long_context_multiplier > 1) {
-          const hint = t('dash.longCtx')
-            .replace('{x}', String(x.long_context_multiplier))
-            .replace('{n}', fmt(x.long_context_from));
-          tier = ` <em class="tier-hint" title="${esc(hint)}">×${esc(String(x.long_context_multiplier))}</em>`;
-        }
 
         // Status is unknown until /api/model-status answers; showing green
         // early would claim availability we have not verified.
@@ -761,7 +832,6 @@
         const meta = bits.length ? ` <em class="status-meta">${esc(bits.join(' · '))}</em>` : '';
 
         return `<li><code>${esc(id)}</code>`
-          + `<span class="mprice">${esc(priceLabel(x))}${tier}</span>`
           + `<strong><span class="status-dot" style="background:${c}"></span>`
           + `<span style="color:${c}">${esc(label)}</span>${meta}</strong></li>`;
       })
@@ -777,24 +847,54 @@
     return k ? { Authorization: 'Bearer ' + k } : undefined;
   }
 
-  // Recent requests table. Split out of render() because the per-cell credit
-  // cost needs /api/pricing, which lands after the first paint: without a
-  // redraw on that arrival the token cells stayed bare until the next login.
+  // The charged column follows the key's quota mode. Raw-token keys use the
+  // settlement marker from `other`; wallet keys use the priced credit charge.
+  function renderRequestTools(row) {
+    const tools = Array.isArray(row.tool_surcharges) ? row.tool_surcharges : [];
+    return tools.map((tool) => {
+      const label = tool.name === 'image_generation'
+        ? t('dash.history.imageTool')
+        : `${t('dash.history.toolCall')}: ${tool.name}`;
+      return `<span class="request-tool">${esc(label)} ×${fmt(tool.count)}</span>`;
+    }).join('');
+  }
+
+  function renderToolDebit(row, usesPackageTariff) {
+    if (!usesPackageTariff || !Array.isArray(row.tool_surcharges)) return '';
+    const image = row.tool_surcharges.find((tool) => tool.name === 'image_generation');
+    if (!image || !Number.isFinite(image.package_units)) return '';
+    return `<small class="request-debit-detail">${t('dash.history.imageDebit')}: ${fmtPackageTokens(image.package_units)}</small>`;
+  }
+
   function renderRecent() {
     const tbody = $('#recent');
     if (!tbody) return;
     const hasAnalytics = Boolean(window._lastData && window._lastData.analytics);
     const a = hasAnalytics ? window._lastData.analytics : {};
     const rec = a.recent || [];
-
-    // Cost per cell is derived from the published per-1M prices, then rescaled
-    // so the three parts add up to the charge the upstream actually reported for
-    // the row. A long-context request bills at a multiple of the flat rate, so
-    // the unscaled parts would understate what was really deducted.
-    const priceBy = new Map();
-    ((pricingData && pricingData.items) || []).forEach((p) => {
-      if (p && p.model) priceBy.set(p.model, p);
-    });
+    const usesTokenQuota = window._lastData && window._lastData.quota_mode === 'tokens';
+    const usesPackageTariff = window._lastData?.billing_basis === 'panel_tariff_v1';
+    let chargedLabel = 'dash.t.chargedCredits';
+    let chargedUnit = 'dash.history.creditUnit';
+    let historyNote = 'dash.history.creditNote';
+    if (usesPackageTariff) {
+      chargedLabel = 'dash.t.chargedPackage';
+      chargedUnit = 'dash.history.packageUnit';
+      historyNote = 'dash.history.packageNote';
+    } else if (usesTokenQuota) {
+      chargedLabel = 'dash.t.chargedTokens';
+      chargedUnit = 'dash.history.tokenUnit';
+      historyNote = 'dash.history.tokenNote';
+    } else {
+      chargedLabel = 'dash.t.chargedUsd';
+      chargedUnit = 'dash.history.usdUnit';
+      historyNote = 'dash.history.usdNote';
+    }
+    $('#chargedLabel').textContent = t(chargedLabel);
+    $('#chargedUnit').textContent = t(chargedUnit);
+    $('#requestUnitsNote').textContent = t(historyNote);
+    $('#requestBillingNote').textContent = t(usesTokenQuota && !usesPackageTariff ? 'dash.rawBillingNote' : 'dash.history.tariff');
+    $('#requestPackageNote').hidden = !usesPackageTariff;
 
     tbody.innerHTML =
       rec
@@ -805,33 +905,14 @@
             ? `<span class="dot-ok">${t('status.ok')}</span>`
             : `<span class="dot-bad" title="${esc(x.error || '')}" style="cursor:help">${t('status.fail')}</span>`;
 
-          const p = priceBy.get(x.model);
-          const perM = (tok, rate) =>
-            rate != null && Number(tok) > 0 ? (Number(tok) / 1e6) * Number(rate) : 0;
-          let cIn = perM(x.input, p && p.input_credits);
-          let cOut = perM(x.output, p && p.output_credits);
-          let cCache = perM(x.cached, p && p.cache_credits);
-          const derived = cIn + cOut + cCache;
-          const actual = Number(x.credits || 0);
-          if (derived > 0 && actual > 0) {
-            const k = actual / derived;
-            cIn *= k;
-            cOut *= k;
-            cCache *= k;
-          }
-          // Under ~0.0001 the credit formatter rounds to "0", and "0 кредитов"
-          // beneath a real token count reads as a bug rather than as "too cheap
-          // to show".
-          const sub = (cr) =>
-            cr > 0.00005 ? `<div class="tsub">${fmtCr(cr)} ${t('credits')}</div>` : '';
-
+          const charged = usesTokenQuota ? x.charged_tokens : (x.usd ?? x.credits);
           return `<tr>
             <td class="mono muted">${esc(ts)}</td>
-            <td class="mono">${esc(x.model)}</td>
-            <td class="mono">${fmt(x.input)}${sub(cIn)}</td>
-            <td class="mono">${fmt(x.output)}${sub(cOut)}</td>
-            <td class="mono">${x.cached ? fmt(x.cached) + sub(cCache) : '<span class="muted2">—</span>'}</td>
-            <td class="mono">${x.credits ? fmtCr(x.credits) : '<span class="muted2">—</span>'}</td>
+            <td class="mono"><span class="request-model">${esc(x.model)}</span>${renderRequestTools(x)}</td>
+            <td class="mono">${fmtPackageTokens(x.input)}</td>
+            <td class="mono">${fmtPackageTokens(x.output)}</td>
+            <td class="mono">${x.cached ? fmtPackageTokens(x.cached) : '<span class="muted2">—</span>'}</td>
+            <td class="mono request-debit"><span class="request-debit-main">${charged != null ? (usesTokenQuota ? fmtPackageTokens(charged) : fmtUsd(charged)) : '<span class="muted2">—</span>'}</span>${renderToolDebit(x, usesPackageTariff)}</td>
             <td>${status}</td>
           </tr>`;
         })
@@ -839,13 +920,15 @@
   }
 
   async function refreshDashboard() {
-    const key = window._lastKey;
-    if (!key || document.hidden) return;
+    const key = window._lastKey || '';
+    if (!window._lastData || document.hidden) return;
     try {
       const response = await fetch('/api/portal/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key }),
+        // Balance changes in New API should appear on the next dashboard tick,
+        // rather than waiting for the server's five-minute snapshot TTL.
+        body: JSON.stringify({ refresh: true }),
       });
       if (!response.ok || window._lastKey !== key) return;
       const data = await response.json();
@@ -877,14 +960,11 @@
   function renderAnalytics() {
     const data = window._lastData || {};
     const analytics = data.analytics;
-    const unit = getUnit();
-    const isTokens = unit === 'tokens';
     const notice = $('#analyticsNotice');
-    const usedEl = $('#used');
     const usedSubEl = $('#usedSub');
-    syncUnitToggle();
 
-    if (usedSubEl) usedSubEl.textContent = t(isTokens ? 'dash.usedTokenSub' : 'dash.usedSub');
+    const usesTokenQuota = data.quota_mode === 'tokens';
+    if (usedSubEl) usedSubEl.textContent = t(data.billing_basis === 'panel_tariff_v1' ? 'dash.usedPackageSub' : usesTokenQuota ? 'dash.usedTokenSub' : 'dash.usedUsdSub');
 
     if (notice) {
       const state = data.analytics_status || (analytics ? 'live' : 'unavailable');
@@ -893,7 +973,6 @@
     }
 
     if (!analytics) {
-      if (usedEl) usedEl.textContent = isTokens ? '—' : fmtCr(data.used_credits || 0);
       $('#reqTotal').textContent = '—';
       $('#successRate').textContent = '—';
       $('#chart').innerHTML = `<div class="muted2">${t('noData')}</div>`;
@@ -911,28 +990,27 @@
 
     const spentTok = Number(analytics.spent_tokens || 0);
     const cachedTok = Number(analytics.cached_tokens || 0);
-    if (usedEl) usedEl.textContent = isTokens ? fmt(spentTok) : fmtCr(data.used_credits || 0);
     const tokEl = $('#usedTokens');
     if (tokEl) {
-      tokEl.hidden = isTokens || spentTok <= 0;
+      tokEl.hidden = true;
       tokEl.textContent = cachedTok > 0
         ? t('dash.spentTokensCached').replace('{n}', fmt(spentTok)).replace('{c}', fmt(cachedTok))
         : t('dash.spentTokens').replace('{n}', fmt(spentTok));
     }
 
-    const unitLabel = isTokens ? t('dash.unitTokens').toLowerCase() : t('credits');
+    const unitLabel = t('tokens');
     const chartTitle = $('#chartTitle');
     const byModelTitle = $('#byModelTitle');
     if (chartTitle) chartTitle.textContent = t('dash.tokens14') + ' · ' + unitLabel;
     if (byModelTitle) byModelTitle.textContent = t('dash.byModel') + ' · ' + unitLabel;
 
     const days = analytics.tokens_by_day || [];
-    const valueOf = (item) => Number(isTokens ? item.tokens : item.credits) || 0;
+    const valueOf = (item) => Number(item.tokens) || 0;
     const maxValue = Math.max(0.01, ...days.map(valueOf));
     $('#chart').innerHTML = days.map((item) => {
       const value = valueOf(item);
       const height = value > 0 ? Math.max(2, Math.round((value / maxValue) * 100)) : 0;
-      const shown = isTokens ? fmt(value) : fmtCr(value);
+      const shown = fmt(value);
       return `<div class="col" title="${esc(item.date)}: ${esc(shown)} ${esc(unitLabel)}"><i style="height:${height}%"></i><span>${esc((item.date || '').slice(5))}</span></div>`;
     }).join('') || `<div class="muted2">${t('noData')}</div>`;
 
@@ -940,7 +1018,7 @@
     const modelMax = Math.max(0.01, ...models.map(valueOf));
     $('#byModel').innerHTML = models.map((item) => {
       const value = valueOf(item);
-      const shown = isTokens ? fmt(value) : fmtCr(value);
+      const shown = fmt(value);
       return `<div class="mrow"><span class="nm">${esc(item.model)}</span>`
         + `<span class="mbar"><i style="width:${Math.round((value / modelMax) * 100)}%"></i></span>`
         + `<span class="v">${shown} ${esc(unitLabel)} · ${fmt(item.requests)} ${t('requests')}</span></div>`;
@@ -958,8 +1036,6 @@
       if (window._lastKey !== key) return;
       if ((next && next.items && next.items.length) || !pricingData) pricingData = next;
       renderModels();
-      // Prices drive the per-cell credit sublabels too.
-      renderRecent();
     } catch (_) {
       /* keep static fallback */
     }
@@ -998,22 +1074,33 @@
     renderModels();
 
     const lang = getLang();
-    const limit = d.limit_credits || 0;
-    const used = d.used_credits || 0;
-    const remaining = d.remaining_credits != null ? d.remaining_credits : Math.max(0, limit - used);
-    const held = d.held_credits || 0;
-    const settledUsed = used;
+    const usesTokenQuota = d.quota_mode === 'tokens';
+    const remainingLabel = d.billing_basis === 'panel_tariff_v1' ? 'dash.remainingPackage' : usesTokenQuota ? 'dash.remainingTokens' : 'dash.remainingUsd';
+    const usedLabel = d.billing_basis === 'panel_tariff_v1' ? 'dash.usedPackageSub' : usesTokenQuota ? 'dash.usedTokenSub' : 'dash.usedUsdSub';
+    const expiryLabel = d.billing_basis === 'panel_tariff_v1' ? 'dash.noExpiryPackage' : usesTokenQuota ? 'dash.noExpiryTokens' : 'dash.noExpiryUsd';
+    const valueFor = (name) => {
+      const raw = d[name + (usesTokenQuota ? '_tokens' : '_usd')];
+      const parsed = Number(raw);
+      return raw == null || !Number.isFinite(parsed) ? null : Math.max(0, parsed);
+    };
+    const limit = valueFor('limit') || 0;
+    const used = valueFor('used') || 0;
+    const explicitRemaining = valueFor('remaining');
+    const remaining = explicitRemaining != null ? explicitRemaining : Math.max(0, limit - used);
+    const held = valueFor('held') || 0;
+    const formatBalance = usesTokenQuota ? fmtPackageTokens : fmtUsd;
 
-    $('#keytag').textContent = maskKey(key);
-    $('#remaining').textContent = fmtCr(remaining);
-    // An unlimited key reports limit_credits = 0, and a package of 0 is not a
+    $('#keytag').textContent = d.key_hint || maskKey(key);
+    $('#remaining').textContent = formatBalance(remaining);
+    $('#remainingLabel').textContent = t(remainingLabel);
+    // An unlimited key reports a zero/null limit, and a package of 0 is not a
     // number worth printing: substituting it left the literal "из —" on screen.
     // With no package there is also nothing to draw a progress bar against.
     const subEl = $('#remainingSub');
     const barWrap = $('#remainingBar') && $('#remainingBar').parentElement;
     if (limit > 0) {
       subEl.hidden = false;
-      subEl.textContent = t('dash.ofPackage').replace('—', fmtCr(limit))
+      subEl.textContent = t('dash.ofPackage').replace('—', formatBalance(limit))
         + (d.balance_mode === 'daily' ? t('daily') : t('package'));
       const pct = Math.max(0, Math.min(100, (remaining / limit) * 100));
       const bar = $('#remainingBar');
@@ -1026,13 +1113,14 @@
       if (barWrap) barWrap.hidden = true;
     }
 
-    $('#used').textContent = fmtCr(settledUsed);
+    $('#used').textContent = formatBalance(used);
+    $('#usedSub').textContent = t(usedLabel);
 
     const holdEl = $('#remainingHold');
     if (held > 0) {
       holdEl.hidden = false;
       holdEl.style.color = 'var(--warn)';
-      holdEl.textContent = t('held') + ': ' + fmtCr(held) + t('heldSuffix');
+      holdEl.textContent = t('held') + ': ' + formatBalance(held) + t('heldSuffix');
     } else {
       holdEl.hidden = true;
     }
@@ -1046,7 +1134,7 @@
       const dt = new Date(d.expires_at);
       expiryEl.textContent = t('expires.prefix') + dt.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US');
     } else {
-      expiryEl.textContent = t('dash.noExpiry');
+      expiryEl.textContent = t(expiryLabel);
     }
 
     const models = d.allowed_models && d.allowed_models.length ? d.allowed_models : [t('noModels')];
@@ -1065,10 +1153,13 @@
     // Dynamic values must be painted after i18n: the generic translated
     // placeholders otherwise overwrite values such as "of 10,000" and the
     // selected analytics unit.
+    $('#remainingLabel').textContent = t(remainingLabel);
+    $('#usedSub').textContent = t(usedLabel);
     if (limit > 0) {
-      subEl.textContent = t('dash.ofPackage').replace('—', fmtCr(limit))
+      subEl.textContent = t('dash.ofPackage').replace('—', formatBalance(limit))
         + (d.balance_mode === 'daily' ? t('daily') : t('package'));
     }
+    if (!d.expires_at) expiryEl.textContent = t(expiryLabel);
     renderModels();
     renderAnalytics();
     // Entitlements are known only now, so tab visibility is decided here.
@@ -1225,13 +1316,15 @@
     document.querySelectorAll('[data-os-btn]').forEach((b) =>
       b.addEventListener('click', () => setOs(b.getAttribute('data-os-btn'))),
     );
-    document.querySelectorAll('[data-unit-btn]').forEach((b) =>
-      b.addEventListener('click', () => setUnit(b.getAttribute('data-unit-btn'))),
+    document.querySelectorAll('[data-theme-btn]').forEach((b) =>
+      b.addEventListener('click', () => setTheme(b.getAttribute('data-theme-btn'))),
     );
   }
 
   // ---------------- init ----------------
   async function init() {
+    applyTheme(getTheme());
+
     // язык: сохранённый или автоопределение из настроек браузера
     const lang = getLang();
     localStorage.setItem(LANG_KEY, lang);
@@ -1248,19 +1341,24 @@
 
     await loadConfig();
     applyI18n(lang);
-    syncUnitToggle();
-
     bindEvents();
     loadNews();
 
-    // авто-вход если ключ сохранён
-    const saved = sessionStorage.getItem(SESSION_KEY);
-    if (saved) {
-      $('#key').value = saved;
-      login();
-    }
+    // Restore only the opaque HttpOnly portal session. The API key itself is
+    // never persisted in browser storage.
+    try {
+      const response = await fetch('/api/portal/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (response.ok) {
+        render(await response.json(), '');
+        startDashboardRefresh();
+      }
+    } catch (_) { /* show the login form */ }
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && window._lastKey) refreshDashboard();
+      if (!document.hidden && window._lastData) refreshDashboard();
     });
   }
 

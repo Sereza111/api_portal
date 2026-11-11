@@ -7,7 +7,7 @@ services:
     container_name: api-portal
     restart: unless-stopped
     ports:
-      - "3401:3401"
+      - "127.0.0.1:3401:3401"
     environment:
       # Required for access from outside the container.
       HOST: 0.0.0.0
@@ -17,7 +17,7 @@ services:
       UPSTREAM_BASE: ${UPSTREAM_BASE}
       UPSTREAM_KEY: ${UPSTREAM_KEY}
       CLIENT_KEYS: ${CLIENT_KEYS:-}
-      PASSTHROUGH: ${PASSTHROUGH:-0}
+      PASSTHROUGH: ${PASSTHROUGH:-1}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       STATUS_URL: ${STATUS_URL:-}
@@ -26,6 +26,12 @@ services:
 
       # Limits and billing.
       MAX_BODY_BYTES: ${MAX_BODY_BYTES:-104857600}
+      PORTAL_LOGIN_MAX_ATTEMPTS: ${PORTAL_LOGIN_MAX_ATTEMPTS:-10}
+      PORTAL_LOGIN_WINDOW_MS: ${PORTAL_LOGIN_WINDOW_MS:-60000}
+      PORTAL_LOGIN_BUCKETS_MAX: ${PORTAL_LOGIN_BUCKETS_MAX:-5000}
+      PORTAL_LOGIN_BODY_BYTES: ${PORTAL_LOGIN_BODY_BYTES:-16384}
+      PORTAL_SESSION_TTL_MS: ${PORTAL_SESSION_TTL_MS:-43200000}
+      PORTAL_SESSION_MAX: ${PORTAL_SESSION_MAX:-5000}
       CREDITS_PER_USD: ${CREDITS_PER_USD:-10000}
 
       # Optional provider dashboard telemetry.
